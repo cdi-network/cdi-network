@@ -22,6 +22,10 @@ interface CreateTaskInput {
     status?: TaskStatus;
     requesterPeerId: string;
     options?: Record<string, unknown>;
+    parentTaskId?: string;
+    chunkIndex?: number;
+    totalChunks?: number;
+    encrypted?: boolean;
 }
 
 interface CompleteTaskInput {
@@ -63,6 +67,10 @@ export class TaskStore {
             requesterPeerId: input.requesterPeerId,
             createdAt: now(),
             options: input.options,
+            parentTaskId: input.parentTaskId,
+            chunkIndex: input.chunkIndex,
+            totalChunks: input.totalChunks,
+            encrypted: input.encrypted,
         };
 
         await this.tasksDb.put(stripUndefined(task));
