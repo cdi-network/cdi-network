@@ -23,6 +23,7 @@ export interface InferenceTask {
     parentTaskId?: string;
     chunkIndex?: number;
     totalChunks?: number;
+    error?: string;
 }
 
 export interface InferenceResult {
