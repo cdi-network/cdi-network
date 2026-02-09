@@ -162,6 +162,31 @@ export class TaskStore {
     }
 
     /**
+     * Returns tasks with a specific parentTaskId.
+     */
+    async getTasksByParent(parentTaskId: string): Promise<InferenceTask[]> {
+        const results = await this.tasksDb.query((entry: any) => entry.parentTaskId === parentTaskId);
+        return (results || []).map((r: any) => this.extractDoc(r));
+    }
+
+    /**
+     * Cancels a PENDING task.
+     */
+    async cancelTask(taskId: string): Promise<void> {
+        const task = await this.getTask(taskId);
+        if (!task) throw new Error(`Task not found: ${taskId}`);
+        if (task.status !== TaskStatus.PENDING) return; // Only cancel pending tasks
+
+        const cancelled: InferenceTask = {
+            ...task,
+            status: TaskStatus.CANCELLED,
+            completedAt: now(),
+        };
+
+        await this.tasksDb.put(stripUndefined(cancelled));
+    }
+
+    /**
      * Returns the result for a task, if any.
      */
     async getResult(taskId: string): Promise<InferenceResult | null> {
