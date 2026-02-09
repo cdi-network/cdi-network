@@ -1,0 +1,36 @@
+{
+  "name": "orbitdb-orchestrated-p2p-inference-swarm-ollama",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@chainsafe/libp2p-noise": "^17.0.0",
+    "@helia/unixfs": "^7.0.4",
+    "@libp2p/bootstrap": "^12.0.11",
+    "@libp2p/tcp": "^11.0.10",
+    "@libp2p/yamux": "^8.0.1",
+    "@orbitdb/core": "^3.0.2",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.2.2",
+    "blockstore-core": "^6.1.2",
+    "blockstore-fs": "^3.0.2",
+    "datastore-core": "^11.0.2",
+    "datastore-fs": "^11.0.2",
+    "helia": "^6.0.20",
+    "jest": "^30.2.0",
+    "multiaddr": "^10.0.1",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "tsyringe": "^4.10.0",
+    "typescript": "^5.9.3",
+    "winston": "^3.19.0"
+  }
+}
