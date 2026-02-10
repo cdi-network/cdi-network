@@ -690,6 +690,34 @@
             flex-shrink: 0
         }
 
+        /* Mainnet Progress */
+        .mn-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 0.75rem
+        }
+
+        .mn-lbl {
+            width: 130px;
+            color: var(--text2);
+            flex-shrink: 0
+        }
+
+        .mn-row .prop-bar {
+            flex: 1;
+            margin-bottom: 0
+        }
+
+        .mn-pct {
+            width: 36px;
+            text-align: right;
+            color: var(--cyan);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem
+        }
+
         .peer-id {
             font-family: 'JetBrains Mono';
             font-size: 0.72rem;
@@ -948,6 +976,38 @@
                         <div class="panel-bd" id="subsystemList" style="font-size:0.78rem;color:var(--text2)">
                             Initializing…</div>
                     </div>
+                    <div class="panel">
+                        <div class="panel-hd">🚀 Mainnet Readiness</div>
+                        <div class="panel-bd" id="mainnetProgress">
+                            <div style="font-size:0.72rem;color:var(--text3);margin-bottom:10px">
+                                Mainnet auto-activates when ALL criteria are met. These rules are immutable — no admin
+                                override.</div>
+                            <div id="mainnetBars">
+                                <div class="mn-row"><span class="mn-lbl">Peers (≥10)</span>
+                                    <div class="prop-bar">
+                                        <div class="prop-bar-fill" id="mnPeers" style="width:0%"></div>
+                                    </div><span class="mn-pct" id="mnPeersPct">0%</span>
+                                </div>
+                                <div class="mn-row"><span class="mn-lbl">Inferences (≥100)</span>
+                                    <div class="prop-bar">
+                                        <div class="prop-bar-fill" id="mnInf" style="width:0%"></div>
+                                    </div><span class="mn-pct" id="mnInfPct">0%</span>
+                                </div>
+                                <div class="mn-row"><span class="mn-lbl">Large ≥7B (≥10)</span>
+                                    <div class="prop-bar">
+                                        <div class="prop-bar-fill" id="mnLarge" style="width:0%"></div>
+                                    </div><span class="mn-pct" id="mnLargePct">0%</span>
+                                </div>
+                                <div class="mn-row"><span class="mn-lbl">Uptime (≥24h)</span>
+                                    <div class="prop-bar">
+                                        <div class="prop-bar-fill" id="mnUp" style="width:0%"></div>
+                                    </div><span class="mn-pct" id="mnUpPct">0%</span>
+                                </div>
+                            </div>
+                            <div id="mainnetStatus"
+                                style="margin-top:8px;font-size:0.78rem;color:var(--gold);font-weight:600"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ── PAGE: Inference ── -->
@@ -1156,24 +1216,33 @@
 
         // ── Node event bus → UI ──
         onNodeEvent((ev, d) => {
-            switch(ev) {
-                case 'wasm:ready': log('WASM ✓','s'); break;
-                case 'p2p:started': log('P2P (libp2p/WebRTC) ✓','s'); break;
-                case 'storage:ready': log('Helia + OrbitDB ✓','s'); break;
-                case 'compute:webgpu': log('WebGPU compute ✓','s'); document.getElementById('idGpu').textContent='✅ Active'; break;
-                case 'compute:cpu': log('CPU fallback (no WebGPU)','w'); document.getElementById('idGpu').textContent='❌ CPU only'; break;
-                case 'security:ready': log('Security (Rate/Rep/Sybil/ZKP) ✓','s'); break;
-                case 'catalog:ready': log('Model Catalog ✓','s'); break;
-                case 'governance:ready': log('Governance ✓','s'); break;
-                case 'faucet:claimed': log(`Faucet: +${d.amount} CDI (${d.type})`,'s'); addTx('faucet',d.amount); break;
-                case 'peer:connected': log(`Peer ${d.peerId?.slice(0,12)}… (${d.total})`); addPeer(d); break;
-                case 'inference:start': log(`Inference → "${d.prompt?.slice(0,40)}…"`); break;
-                case 'inference:complete': log('Inference complete ✓','s'); break;
+            switch (ev) {
+                case 'wasm:ready': log('WASM ✓', 's'); break;
+                case 'p2p:started': log('P2P (libp2p/WebRTC) ✓', 's'); break;
+                case 'storage:ready': log('Helia + OrbitDB ✓', 's'); break;
+                case 'compute:webgpu': log('WebGPU compute ✓', 's'); document.getElementById('idGpu').textContent = '✅ Active'; break;
+                case 'compute:cpu': log('CPU fallback (no WebGPU)', 'w'); document.getElementById('idGpu').textContent = '❌ CPU only'; break;
+                case 'security:ready': log('Security (Rate/Rep/Sybil/ZKP) ✓', 's'); break;
+                case 'catalog:ready': log('Model Catalog ✓', 's'); break;
+                case 'governance:ready': log('Governance ✓', 's'); break;
+                case 'genesis:mined': log(`⛏️ Genesis block #0 mined! ${d.models} seed models loaded`, 's'); break;
+                case 'genesis:loaded': log('Genesis block loaded', 's'); break;
+                case 'faucet:claimed': log(`Faucet: +${d.amount} CDI (${d.type})`, 's'); addTx('faucet', d.amount); break;
+                case 'peer:connected': log(`Peer ${d.peerId?.slice(0, 12)}… (${d.total})`); addPeer(d); updateMainnetProgress(); break;
+                case 'peer:disconnected': log(`Peer lost: ${d.peerId?.slice(0, 12)}… (${d.total})`, 'w'); break;
+                case 'inference:start': log(`Inference → "${d.prompt?.slice(0, 40)}…"`); break;
+                case 'inference:complete': log('Inference complete ✓', 's'); updateMainnetProgress(); break;
+                case 'mainnet:activated':
+                    log('🚀 MAINNET ACTIVATED!', 's');
+                    document.getElementById('idNet').textContent = 'MAINNET';
+                    document.getElementById('mainnetStatus').textContent = '🚀 MAINNET LIVE — All criteria met!';
+                    break;
                 case 'node:ready':
-                    log('━━━━━━━━━━━━━━━━━━━━━━━','s');
-                    log('ALL SUBSYSTEMS ONLINE','s');
-                    log('━━━━━━━━━━━━━━━━━━━━━━━','s');
+                    log('━━━━━━━━━━━━━━━━━━━━━━━', 's');
+                    log('ALL SUBSYSTEMS ONLINE', 's');
+                    log('━━━━━━━━━━━━━━━━━━━━━━━', 's');
                     updateSubsystemUI();
+                    updateMainnetProgress();
                     break;
             }
         });
@@ -1183,31 +1252,31 @@
             try {
                 await initWasm();
                 _wallet = loadOrCreateWallet();
-                log(`Wallet: ${_wallet.peerId.slice(0,16)}…`);
+                log(`Wallet: ${_wallet.peerId.slice(0, 16)}…`);
                 const b = getStoredBinding();
                 if (b && window.ethereum) {
                     try {
-                        const a = await window.ethereum.request({method:'eth_accounts'});
-                        if (a.length > 0 && a[0].toLowerCase()===b.ethAddress.toLowerCase()) {
+                        const a = await window.ethereum.request({ method: 'eth_accounts' });
+                        if (a.length > 0 && a[0].toLowerCase() === b.ethAddress.toLowerCase()) {
                             log('Auto-reconnecting…');
                             await doConnect(true);
                             return;
                         }
-                    } catch(e){}
+                    } catch (e) { }
                 }
-            } catch(e) { log('Init: '+e.message,'w'); }
+            } catch (e) { log('Init: ' + e.message, 'w'); }
         });
 
         // ── Join ──
-        window.joinNetwork = async function() {
+        window.joinNetwork = async function () {
             const btn = document.getElementById('btnJoin');
             btn.disabled = true; btn.textContent = 'Initializing…';
             try {
                 await initWasm();
                 _wallet = loadOrCreateWallet();
                 await doConnect(false);
-            } catch(e) {
-                log('Error: '+e.message,'e');
+            } catch (e) {
+                log('Error: ' + e.message, 'e');
                 btn.disabled = false; btn.textContent = '🌐 Join the Network';
             }
         };
@@ -1215,7 +1284,7 @@
         async function doConnect(auto) {
             if (!auto) {
                 const b = await connectMetaMask();
-                log('MetaMask bound: '+b.ethAddress.slice(0,10)+'…','s');
+                log('MetaMask bound: ' + b.ethAddress.slice(0, 10) + '…', 's');
             } else { await connectMetaMask(); }
             await startNode();
             enterApp();
@@ -1246,9 +1315,9 @@
                 document.getElementById('dEarn').textContent = s.earnings.toFixed(2);
                 document.getElementById('dPeers').textContent = s.peers;
                 document.getElementById('dShards').textContent = s.shards;
-                const h=String(Math.floor(s.uptime/3600)).padStart(2,'0');
-                const m=String(Math.floor((s.uptime%3600)/60)).padStart(2,'0');
-                const sc=String(s.uptime%60).padStart(2,'0');
+                const h = String(Math.floor(s.uptime / 3600)).padStart(2, '0');
+                const m = String(Math.floor((s.uptime % 3600) / 60)).padStart(2, '0');
+                const sc = String(s.uptime % 60).padStart(2, '0');
                 document.getElementById('dUp').textContent = `${h}:${m}:${sc}`;
                 document.getElementById('walBal').textContent = s.earnings.toFixed(2);
                 document.getElementById('walEarned').textContent = s.earnings.toFixed(2);
@@ -1261,13 +1330,35 @@
         function updateSubsystemUI() {
             const s = getNodeStatus().subsystems || {};
             const el = document.getElementById('subsystemList');
-            el.innerHTML = Object.entries(s).map(([k,v]) =>
-                `<div style="display:inline-block;margin:3px 6px;padding:3px 10px;border-radius:6px;font-size:0.72rem;background:${v?'rgba(0,230,118,0.1)':'rgba(255,82,82,0.1)'};color:${v?'var(--green)':'var(--red)'}">${v?'✓':'✗'} ${k}</div>`
+            el.innerHTML = Object.entries(s).map(([k, v]) =>
+                `<div style="display:inline-block;margin:3px 6px;padding:3px 10px;border-radius:6px;font-size:0.72rem;background:${v ? 'rgba(0,230,118,0.1)' : 'rgba(255,82,82,0.1)'};color:${v ? 'var(--green)' : 'var(--red)'}">${v ? '✓' : '✗'} ${k}</div>`
             ).join('');
         }
 
+        function updateMainnetProgress() {
+            const st = getNodeStatus();
+            const p = st.mainnetProgress;
+            if (!p) return;
+            // Update bars
+            const set = (id, pct) => {
+                const bar = document.getElementById(id);
+                const lbl = document.getElementById(id + 'Pct');
+                if (bar) bar.style.width = pct + '%';
+                if (lbl) lbl.textContent = pct + '%';
+            };
+            set('mnPeers', p.peers?.pct || 0);
+            set('mnInf', p.inferences?.pct || 0);
+            set('mnLarge', p.largeModels?.pct || 0);
+            set('mnUp', p.uptime?.pct || 0);
+            // Network indicator
+            document.getElementById('idNet').textContent = st.network === 'mainnet' ? 'MAINNET 🚀' : 'testnet';
+            if (st.network === 'mainnet') {
+                document.getElementById('mainnetStatus').textContent = '🚀 MAINNET LIVE — All criteria met!';
+            }
+        }
+
         // ── Inference ──
-        window.doInference = async function() {
+        window.doInference = async function () {
             const input = document.getElementById('inferIn');
             const output = document.getElementById('inferOut');
             const model = document.getElementById('inferModel').value;
@@ -1281,31 +1372,31 @@
                 const ms = Date.now() - t0;
                 output.textContent = result?.output || JSON.stringify(result);
                 document.getElementById('infLast').textContent = `${ms}ms`;
-            } catch(e) {
+            } catch (e) {
                 output.textContent = 'Error: ' + e.message;
-                log('Inference error: '+e.message,'e');
+                log('Inference error: ' + e.message, 'e');
             }
         };
 
         // ── Model Catalog ──
         const MODELS = [
-            {name:'LLaMA 3.1 8B',size:'4.7 GB',cat:'chat',family:'Meta'},
-            {name:'LLaMA 3.1 70B',size:'40 GB',cat:'chat',family:'Meta'},
-            {name:'Mistral 7B v0.3',size:'4.1 GB',cat:'chat',family:'Mistral'},
-            {name:'Qwen 2.5 7B',size:'4.4 GB',cat:'chat',family:'Alibaba'},
-            {name:'Gemma 2 9B',size:'5.4 GB',cat:'chat',family:'Google'},
-            {name:'Phi-4 14B',size:'7.9 GB',cat:'reason',family:'Microsoft'},
-            {name:'DeepSeek R1 8B',size:'4.9 GB',cat:'reason',family:'DeepSeek'},
-            {name:'DeepSeek Coder V2',size:'8.9 GB',cat:'code',family:'DeepSeek'},
-            {name:'StarCoder2 15B',size:'9.1 GB',cat:'code',family:'BigCode'},
-            {name:'Qwen2.5-Coder 7B',size:'4.4 GB',cat:'code',family:'Alibaba'},
-            {name:'LLaVA 1.6 13B',size:'7.8 GB',cat:'vision',family:'LLaVA'},
-            {name:'InternVL2 8B',size:'4.9 GB',cat:'vision',family:'InternLM'},
-            {name:'Whisper Large V3',size:'1.5 GB',cat:'audio',family:'OpenAI'},
-            {name:'Nomic Embed v1.5',size:'0.3 GB',cat:'embed',family:'Nomic'},
-            {name:'BGE Large v1.5',size:'0.4 GB',cat:'embed',family:'BAAI'},
-            {name:'Meditron 70B',size:'40 GB',cat:'chat',family:'EPFL'},
-            {name:'DeepSeek Math 7B',size:'4.1 GB',cat:'reason',family:'DeepSeek'},
+            { name: 'LLaMA 3.1 8B', size: '4.7 GB', cat: 'chat', family: 'Meta' },
+            { name: 'LLaMA 3.1 70B', size: '40 GB', cat: 'chat', family: 'Meta' },
+            { name: 'Mistral 7B v0.3', size: '4.1 GB', cat: 'chat', family: 'Mistral' },
+            { name: 'Qwen 2.5 7B', size: '4.4 GB', cat: 'chat', family: 'Alibaba' },
+            { name: 'Gemma 2 9B', size: '5.4 GB', cat: 'chat', family: 'Google' },
+            { name: 'Phi-4 14B', size: '7.9 GB', cat: 'reason', family: 'Microsoft' },
+            { name: 'DeepSeek R1 8B', size: '4.9 GB', cat: 'reason', family: 'DeepSeek' },
+            { name: 'DeepSeek Coder V2', size: '8.9 GB', cat: 'code', family: 'DeepSeek' },
+            { name: 'StarCoder2 15B', size: '9.1 GB', cat: 'code', family: 'BigCode' },
+            { name: 'Qwen2.5-Coder 7B', size: '4.4 GB', cat: 'code', family: 'Alibaba' },
+            { name: 'LLaVA 1.6 13B', size: '7.8 GB', cat: 'vision', family: 'LLaVA' },
+            { name: 'InternVL2 8B', size: '4.9 GB', cat: 'vision', family: 'InternLM' },
+            { name: 'Whisper Large V3', size: '1.5 GB', cat: 'audio', family: 'OpenAI' },
+            { name: 'Nomic Embed v1.5', size: '0.3 GB', cat: 'embed', family: 'Nomic' },
+            { name: 'BGE Large v1.5', size: '0.4 GB', cat: 'embed', family: 'BAAI' },
+            { name: 'Meditron 70B', size: '40 GB', cat: 'chat', family: 'EPFL' },
+            { name: 'DeepSeek Math 7B', size: '4.1 GB', cat: 'reason', family: 'DeepSeek' },
         ];
 
         function populateModels() {
@@ -1320,16 +1411,16 @@
 
         // ── Governance ──
         const PROPOSALS = [
-            {id:1,title:'Increase provider share to 90%',desc:'Raise provider fee from 85% to 90%',yes:42,no:18,status:'active'},
-            {id:2,title:'Add Llama 4 Scout to catalog',desc:'Add new Meta model when released',yes:67,no:3,status:'active'},
-            {id:3,title:'Reduce halving interval by 20%',desc:'Accelerate emission schedule',yes:12,no:45,status:'active'},
+            { id: 1, title: 'Increase provider share to 90%', desc: 'Raise provider fee from 85% to 90%', yes: 42, no: 18, status: 'active' },
+            { id: 2, title: 'Add Llama 4 Scout to catalog', desc: 'Add new Meta model when released', yes: 67, no: 3, status: 'active' },
+            { id: 3, title: 'Reduce halving interval by 20%', desc: 'Accelerate emission schedule', yes: 12, no: 45, status: 'active' },
         ];
 
         function populateProposals() {
             const el = document.getElementById('proposalList');
             el.innerHTML = PROPOSALS.map(p => {
                 const total = p.yes + p.no;
-                const pct = total > 0 ? Math.round((p.yes/total)*100) : 0;
+                const pct = total > 0 ? Math.round((p.yes / total) * 100) : 0;
                 return `<div class="prop-card">
                     <div class="prop-title">${p.title}</div>
                     <div class="prop-meta">${p.desc}</div>
@@ -1343,22 +1434,22 @@
                     </div>
                 </div>`;
             }).join('');
-            document.getElementById('govActive').textContent = PROPOSALS.filter(p=>p.status==='active').length;
-            document.getElementById('govVotes').textContent = PROPOSALS.reduce((a,p)=>a+p.yes+p.no,0);
+            document.getElementById('govActive').textContent = PROPOSALS.filter(p => p.status === 'active').length;
+            document.getElementById('govVotes').textContent = PROPOSALS.reduce((a, p) => a + p.yes + p.no, 0);
         }
 
-        window.vote = function(id, yn) {
-            const p = PROPOSALS.find(x=>x.id===id);
-            if (p) { yn ? p.yes++ : p.no++; populateProposals(); log(`Voted ${yn?'YES':'NO'} on "${p.title}"`,'s'); }
+        window.vote = function (id, yn) {
+            const p = PROPOSALS.find(x => x.id === id);
+            if (p) { yn ? p.yes++ : p.no++; populateProposals(); log(`Voted ${yn ? 'YES' : 'NO'} on "${p.title}"`, 's'); }
         };
 
-        window.createProposal = function() {
+        window.createProposal = function () {
             const title = prompt('Proposal title:');
             if (!title) return;
             const desc = prompt('Description:') || '';
-            PROPOSALS.push({id:PROPOSALS.length+1,title,desc,yes:1,no:0,status:'active'});
+            PROPOSALS.push({ id: PROPOSALS.length + 1, title, desc, yes: 1, no: 0, status: 'active' });
             populateProposals();
-            log(`Created proposal: "${title}"`,'s');
+            log(`Created proposal: "${title}"`, 's');
         };
 
         // ── Peers ──
@@ -1375,41 +1466,41 @@
         // ── Wallet / Faucet ──
         let _txs = [];
         function addTx(type, amount) {
-            _txs.push({type, amount, time: new Date().toLocaleTimeString()});
+            _txs.push({ type, amount, time: new Date().toLocaleTimeString() });
             const el = document.getElementById('txList');
             el.innerHTML = _txs.slice().reverse().map(tx =>
                 `<div class="tx-row">
                     <span class="tx-type">${tx.time} — ${tx.type}</span>
-                    <span class="tx-amount ${tx.amount>=0?'plus':'minus'}">${tx.amount>=0?'+':''}${tx.amount.toFixed(2)} CDI</span>
+                    <span class="tx-amount ${tx.amount >= 0 ? 'plus' : 'minus'}">${tx.amount >= 0 ? '+' : ''}${tx.amount.toFixed(2)} CDI</span>
                 </div>`
             ).join('');
             document.getElementById('walTx').textContent = _txs.length;
         }
 
-        window.claimFaucet = async function(type) {
+        window.claimFaucet = async function (type) {
             try {
                 const sub = getSubsystems();
                 if (sub.faucet) {
                     const peerId = getNodeStatus().peerId;
                     sub.faucet.claimReward(peerId, type);
                 }
-                const amounts = {first_inference:5, model_host:15, governance_vote:2};
-                addTx('faucet:'+type, amounts[type]||5);
-                log(`Faucet claimed: ${type} (+${amounts[type]||5} CDI)`,'s');
-            } catch(e) {
-                log('Faucet: '+e.message,'w');
+                const amounts = { first_inference: 5, model_host: 15, governance_vote: 2 };
+                addTx('faucet:' + type, amounts[type] || 5);
+                log(`Faucet claimed: ${type} (+${amounts[type] || 5} CDI)`, 's');
+            } catch (e) {
+                log('Faucet: ' + e.message, 'w');
             }
         };
 
         // ── Navigation ──
-        window.showPage = function(id) {
+        window.showPage = function (id) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
-            document.getElementById('pg-'+id).classList.add('active');
+            document.getElementById('pg-' + id).classList.add('active');
             event.currentTarget.classList.add('active');
         };
 
-        window.goHome = function() {
+        window.goHome = function () {
             if (document.getElementById('app').style.display === 'block') {
                 showPage('dashboard');
                 document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));

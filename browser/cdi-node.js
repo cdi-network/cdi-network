@@ -57,6 +57,17 @@ import { HealthMonitor } from './testnet/HealthMonitor.js';
 import { TestnetFaucet } from './testnet/TestnetFaucet.js';
 import { NetworkDashboard } from './testnet/NetworkDashboard.js';
 
+// Tab-to-Tab P2P (BroadcastChannel), Genesis Block, Mainnet Gate
+import { TabMesh, GenesisBlockMiner, MainnetGate } from './p2p/TabMesh.js';
+
+// Immutable Genesis Constants (public key, tokenomics, mainnet criteria)
+import {
+    GENESIS_MINER_PUBLIC_KEY, GENESIS_MINER_PEER_ID,
+    MAX_SUPPLY, GENESIS_ALLOCATION, PROVIDER_SHARE, ECOSYSTEM_SHARE,
+    MAINNET_CRITERIA, GENESIS_SEED_MODELS, RELAY_BOOTSTRAP,
+    isGenesisMiner, isGenesisPeerId, checkMainnetReadiness
+} from './genesis/constants.js';
+
 // ── Node State ────────────────────────────────────────────────────────
 
 const NODE = {
@@ -90,6 +101,9 @@ const NODE = {
     healthMonitor: null,
     faucet: null,
     dashboard: null,
+    tabMesh: null,
+    genesisMiner: null,
+    mainnetGate: null,
 
     // Runtime metrics
     peers: [],
@@ -150,24 +164,47 @@ function persistWallet(wallet) {
     localStorage.setItem('cdi_wallet', wallet.export_json());
 }
 
-// ── MetaMask ──────────────────────────────────────────────────────────
+// ── MetaMask — In-Browser P2P Chain ───────────────────────────────────
+// CDI chain (0xCD1 / 3281) lives entirely in the browser.
+// No external RPC — the SPA handles all chain operations via BroadcastChannel + WebRTC.
+
+const CDI_CHAIN = {
+    chainId: '0xCD1',
+    chainName: 'CDI Network',
+    nativeCurrency: { name: 'CDI Token', symbol: 'CDI', decimals: 18 },
+    rpcUrls: [window.location.origin + window.location.pathname],
+    blockExplorerUrls: [window.location.origin + window.location.pathname],
+};
 
 export async function connectMetaMask() {
     if (!window.ethereum) {
         throw new Error('MetaMask or Brave Wallet not detected. Please install a Web3 wallet.');
     }
+
+    // ① Request account access
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     if (!accounts?.length) throw new Error('No accounts found.');
-
     const ethAddress = accounts[0];
     NODE.ethAddress = ethAddress;
+
+    // ② Auto-add CDI Network chain to MetaMask (no external RPC)
+    try {
+        await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [CDI_CHAIN],
+        });
+        console.log('[CDI] CDI chain (0xCD1) added to MetaMask');
+    } catch (e) {
+        // Chain may already exist — that's fine
+        console.log('[CDI] CDI chain already registered or user declined:', e.message);
+    }
 
     const wallet = NODE.wallet;
     if (!wallet) throw new Error('CDI wallet not initialized');
 
-    // EIP-712 binding: ETH address ↔ CDI peerId
+    // ③ EIP-712 binding: ETH address ↔ CDI peerId (on CDI chain, chainId=3281)
     const bindingMessage = {
-        domain: { name: 'CDI Network', version: '1', chainId: 1 },
+        domain: { name: 'CDI Network', version: '1', chainId: 3281 },
         types: {
             EIP712Domain: [
                 { name: 'name', type: 'string' },
@@ -193,13 +230,19 @@ export async function connectMetaMask() {
         params: [ethAddress, JSON.stringify(bindingMessage)],
     });
 
+    // ④ Check if this is the genesis miner
+    const isGenesis = ethAddress.toLowerCase() === NODE.ethAddress?.toLowerCase() &&
+        isGenesisPeerId(wallet.peer_id);
+
     localStorage.setItem('cdi_eth_binding', JSON.stringify({
         ethAddress, cdiPeerId: wallet.peer_id, signature,
         timestamp: bindingMessage.message.timestamp,
+        isGenesisMiner: isGenesis,
+        chainId: 3281,
     }));
 
-    emit('wallet:bound', { ethAddress, cdiPeerId: wallet.peer_id });
-    return { ethAddress, cdiPeerId: wallet.peer_id, signature };
+    emit('wallet:bound', { ethAddress, cdiPeerId: wallet.peer_id, isGenesisMiner: isGenesis });
+    return { ethAddress, cdiPeerId: wallet.peer_id, signature, isGenesisMiner: isGenesis };
 }
 
 export function getStoredBinding() {
@@ -286,9 +329,20 @@ export async function startNode() {
         executor: NODE.executor,
     });
 
-    // ⑧ Testnet specifics
+    // ⑧ Genesis Block — mined by YOU, seeded with immutable GENESIS_SEED_MODELS
+    console.log('[CDI] Checking genesis block...');
+    NODE.genesisMiner = new GenesisBlockMiner({ peerId, ethAddress: NODE.ethAddress });
+    if (!NODE.genesisMiner.isGenesisMined()) {
+        console.log('[CDI] ⛏️ Mining genesis block #0 with', GENESIS_SEED_MODELS.length, 'seed models...');
+        NODE.genesisMiner.mineGenesisBlock([...GENESIS_SEED_MODELS]);
+        emit('genesis:mined', { miner: peerId, models: GENESIS_SEED_MODELS.length });
+    } else {
+        emit('genesis:loaded', NODE.genesisMiner.getGenesisBlock());
+    }
+
+    // ⑨ Testnet specifics
     if (NODE.network === 'testnet') {
-        console.log('[CDI] Testnet mode — loading genesis config...');
+        console.log('[CDI] Testnet mode — loading config...');
         NODE.genesis = new GenesisConfig();
         NODE.healthMonitor = new HealthMonitor(NODE.p2p);
         NODE.faucet = new TestnetFaucet(NODE.ledger);
@@ -306,17 +360,67 @@ export async function startNode() {
         } catch (e) { /* already claimed */ }
     }
 
-    // ⑨ Start peer discovery
+    // ⑩ MainnetGate — auto-mainnet when testnet proves large LLM inference
+    const genesisBlock = NODE.genesisMiner.getGenesisBlock();
+    NODE.mainnetGate = new MainnetGate({
+        genesis: genesisBlock,
+        onMainnet: (progress) => {
+            NODE.network = 'mainnet';
+            console.log('[CDI] 🚀 MAINNET ACTIVATED!', progress);
+            emit('mainnet:activated', progress);
+        },
+    });
+
+    // ⑪ TabMesh — BroadcastChannel P2P for same-origin tabs
+    console.log('[CDI] Starting TabMesh (tab-to-tab P2P)...');
+    NODE.tabMesh = new TabMesh({
+        peerId,
+        ethAddress: NODE.ethAddress,
+        onPeer: (peer) => {
+            NODE.peers.push(peer);
+            NODE.reputation.addPeer?.(peer.peerId);
+            NODE.mainnetGate.recordPeer(peer.peerId);
+            emit('peer:connected', { peerId: peer.peerId, total: NODE.tabMesh.getPeerCount(), shards: 0 });
+        },
+        onPeerLost: (peer) => {
+            NODE.peers = NODE.peers.filter(p => p.peerId !== peer.peerId);
+            emit('peer:disconnected', { peerId: peer.peerId, total: NODE.tabMesh.getPeerCount() });
+        },
+        onMessage: (msg) => {
+            if (msg.type === 'mainnet:trigger') {
+                NODE.network = 'mainnet';
+                emit('mainnet:activated', msg.proof);
+            }
+        },
+        onInferenceReq: async (req) => {
+            // Distributed inference: another tab requested inference, we execute locally
+            try {
+                const result = await NODE.executor.execute?.({ prompt: req.prompt, model: req.model });
+                NODE.tabMesh.respondInference(req.id, result);
+                NODE.inferences++;
+                emit('inference:complete', { output: result, distributed: true });
+            } catch (e) { /* can't execute this model */ }
+        },
+    });
+    // Wire metrics for heartbeat
+    NODE.tabMesh._getUptime = () => NODE.uptime;
+    NODE.tabMesh._getInferences = () => NODE.inferences;
+    NODE.tabMesh._getEarnings = () => NODE.earnings;
+    NODE.tabMesh.start();
+
+    // ⑫ Start libp2p peer discovery (for cross-origin peers)
     NODE.discovery.start();
     NODE.discovery.on('peer:found', (peer) => {
         NODE.peers.push(peer);
         NODE.reputation.addPeer?.(peer.id);
+        NODE.mainnetGate.recordPeer(peer.id);
         emit('peer:connected', { peerId: peer.id, total: NODE.peers.length });
     });
 
-    // ⑩ Uptime counter
+    // ⑬ Uptime counter + MainnetGate uptime tracking
     setInterval(() => {
         NODE.uptime = Math.floor((Date.now() - NODE.startTime) / 1000);
+        NODE.mainnetGate.recordUptime(NODE.uptime);
     }, 1000);
 
     console.log('[CDI] ✅ Node fully started', {
@@ -324,11 +428,7 @@ export async function startNode() {
         ethAddress: NODE.ethAddress.slice(0, 10) + '...',
         network: NODE.network,
         webgpu: hasWebGPU,
-        subsystems: [
-            'P2P', 'Helia', 'Ledger', 'WebGPU', 'Security',
-            'Catalog', 'Pipeline', 'Governance', 'AutoBalancer',
-            NODE.network === 'testnet' ? 'Testnet' : 'Mainnet',
-        ].join(' → '),
+        genesisBlock: genesisBlock?.blockNumber === 0 ? 'mined' : 'loaded',
     });
 
     emit('node:ready', getNodeStatus());
@@ -385,6 +485,7 @@ export async function runInference(prompt, modelId) {
     });
 
     emit('inference:complete', { ...result, earnings: split.provider_share });
+    NODE.mainnetGate?.recordInference(model, model);
     return result;
 }
 
@@ -395,15 +496,20 @@ export function getNodeStatus() {
         running: NODE.startTime !== null,
         peerId: NODE.wallet?.peer_id || null,
         ethAddress: NODE.ethAddress,
-        peers: NODE.peers.length,
+        peers: NODE.tabMesh ? NODE.tabMesh.getPeerCount() : NODE.peers.length,
         shards: NODE.shards.length,
         earnings: NODE.earnings,
         uptime: NODE.uptime,
         inferences: NODE.inferences,
         network: NODE.network,
         webgpu: !!navigator.gpu,
+        genesisBlock: NODE.genesisMiner?.getGenesisBlock() || null,
+        mainnetProgress: NODE.mainnetGate?.getProgress() || null,
+        tabPeers: NODE.tabMesh?.getPeers() || [],
+        networkStats: NODE.tabMesh?.getNetworkStats() || {},
         subsystems: {
             p2p: !!NODE.p2p,
+            tabMesh: !!NODE.tabMesh,
             helia: !!NODE.helia,
             ledger: !!NODE.ledger,
             executor: !!NODE.executor,
@@ -411,6 +517,8 @@ export function getNodeStatus() {
             catalog: !!NODE.catalog,
             pipeline: !!NODE.pipeline,
             governance: !!NODE.governance,
+            genesis: !!NODE.genesisMiner?.isGenesisMined(),
+            mainnetGate: !!NODE.mainnetGate,
         },
     };
 }
