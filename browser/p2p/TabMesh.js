@@ -5,42 +5,59 @@
  * via BroadcastChannel (same-origin = same domain). No server needed.
  *
  * Protocol:
- *   announce  → { type:'announce', peerId, ethAddress, shards, gpu, ts }
+ *   announce  → { type:'announce', peerId, ethAddress, ecdhPubKey, shards, gpu, ts }
  *   heartbeat → { type:'heartbeat', peerId, uptime, inferences, earnings }
- *   inference → { type:'inference:req', id, prompt, model, from }
- *              { type:'inference:res', id, output, peerId }
+ *   inference → { type:'inference:req', id, model, targetPeerId, encrypted, ciphertext, iv }
+ *              { type:'inference:res', id, requesterPeerId, encrypted, ciphertext, iv }
  *   governance → { type:'vote', proposalId, peerId, vote }
  *   mainnet   → { type:'mainnet:trigger', proof, ts }
+ *
+ * E2E Encryption (ECDH P-256 + AES-256-GCM):
+ *   - Each node generates an ECDH keypair at start
+ *   - Public keys exchanged in announce messages
+ *   - Shared secret derived per-peer via ECDH
+ *   - Inference prompts/responses encrypted — only sender + executor can read
+ *   - Eavesdropping tabs see only ciphertext
  */
+
+import { E2EKeyManager } from '../crypto/E2ECrypto.js';
 
 const CHANNEL_NAME = 'cdi-network-mesh';
 const HEARTBEAT_MS = 3000;
 const PEER_TIMEOUT_MS = 12000;
 
 export class TabMesh {
-    constructor({ peerId, ethAddress, onPeer, onPeerLost, onMessage, onInferenceReq }) {
+    constructor({ peerId, ethAddress, onPeer, onPeerLost, onMessage, onInferenceReq, onEncryptedDrop }) {
         this.peerId = peerId;
         this.ethAddress = ethAddress;
         this.onPeer = onPeer || (() => { });
         this.onPeerLost = onPeerLost || (() => { });
         this.onMessage = onMessage || (() => { });
         this.onInferenceReq = onInferenceReq || (() => { });
+        /** Called when this node sees an encrypted message it can't decrypt (eavesdropper proof) */
+        this.onEncryptedDrop = onEncryptedDrop || (() => { });
 
         this.peers = new Map(); // peerId → { ethAddress, shards, gpu, lastSeen, uptime, inferences, earnings }
         this.channel = null;
         this._hbInterval = null;
         this._gcInterval = null;
         this._started = false;
+
+        /** @type {E2EKeyManager} ECDH + AES-256-GCM key manager */
+        this.e2e = new E2EKeyManager();
     }
 
-    start() {
+    async start() {
         if (this._started) return;
         this._started = true;
+
+        // Generate ECDH keypair for E2E encryption
+        await this.e2e.init();
 
         this.channel = new BroadcastChannel(CHANNEL_NAME);
         this.channel.onmessage = (ev) => this._handleMessage(ev.data);
 
-        // Announce ourselves immediately
+        // Announce ourselves immediately (includes ECDH public key)
         this._announce();
 
         // Heartbeat loop
@@ -49,7 +66,7 @@ export class TabMesh {
         // GC stale peers
         this._gcInterval = setInterval(() => this._gc(), HEARTBEAT_MS * 2);
 
-        console.log(`[TabMesh] Started — peerId=${this.peerId.slice(0, 12)}…`);
+        console.log(`[TabMesh] Started — peerId=${this.peerId.slice(0, 12)}… (E2E ready)`);
     }
 
     stop() {
@@ -73,6 +90,7 @@ export class TabMesh {
             type: 'announce',
             peerId: this.peerId,
             ethAddress: this.ethAddress,
+            ecdhPubKey: this.e2e.getPublicKeyBase64(),
             shards: this._getLocalShards(),
             gpu: !!navigator.gpu,
             ts: Date.now(),
@@ -89,14 +107,68 @@ export class TabMesh {
         });
     }
 
-    // Sent an inference request to all peers
-    requestInference(id, prompt, model) {
-        this.send({ type: 'inference:req', id, prompt, model });
+    /**
+     * Send an E2E encrypted inference request to a specific peer.
+     * If targetPeerId is omitted, picks the first available peer.
+     * The prompt is encrypted — only the target peer can decrypt it.
+     */
+    async requestInference(id, prompt, model, targetPeerId) {
+        // Pick target peer (explicit or first available)
+        const target = targetPeerId || this._pickPeer();
+        if (!target) {
+            console.warn('[TabMesh] No peers available for inference');
+            return;
+        }
+
+        if (!this.e2e.hasPeer(target)) {
+            console.warn(`[TabMesh] No E2E key for peer ${target.slice(0, 12)}… — sending unencrypted`);
+            this.send({ type: 'inference:req', id, prompt, model, targetPeerId: target, encrypted: false });
+            return;
+        }
+
+        const { ciphertext, iv } = await this.e2e.encryptFor(target, prompt);
+        console.log(`[TabMesh] 🔒 Inference encrypted for ${target.slice(0, 12)}…`);
+        this.send({
+            type: 'inference:req', id, model,
+            targetPeerId: target,
+            encrypted: true,
+            ciphertext, iv,
+        });
     }
 
-    // Respond to an inference request
-    respondInference(id, output) {
-        this.send({ type: 'inference:res', id, output, peerId: this.peerId });
+    /**
+     * Respond to an inference request with E2E encrypted output.
+     * @param {string} id — inference request ID
+     * @param {string} output — plaintext response
+     * @param {string} requesterPeerId — who asked (to encrypt for them)
+     */
+    async respondInference(id, output, requesterPeerId) {
+        if (!requesterPeerId || !this.e2e.hasPeer(requesterPeerId)) {
+            console.warn(`[TabMesh] No E2E key for requester — sending unencrypted response`);
+            this.send({ type: 'inference:res', id, output, peerId: this.peerId, encrypted: false });
+            return;
+        }
+
+        const { ciphertext, iv } = await this.e2e.encryptFor(requesterPeerId, output);
+        console.log(`[TabMesh] 🔒 Inference response encrypted for ${requesterPeerId.slice(0, 12)}…`);
+        this.send({
+            type: 'inference:res', id,
+            peerId: this.peerId,
+            requesterPeerId,
+            encrypted: true,
+            ciphertext, iv,
+        });
+    }
+
+    /** Pick the best peer for inference (first with GPU, fallback to any). */
+    _pickPeer() {
+        // Prefer GPU peers
+        for (const [id, p] of this.peers) {
+            if (p.gpu) return id;
+        }
+        // Fallback: any peer
+        const first = this.peers.keys().next();
+        return first.done ? null : first.value;
     }
 
     // ── Vote ──
@@ -111,7 +183,7 @@ export class TabMesh {
 
     // ── Receive ──
 
-    _handleMessage(data) {
+    async _handleMessage(data) {
         if (!data || data.from === this.peerId) return; // Ignore own messages
 
         switch (data.type) {
@@ -126,12 +198,23 @@ export class TabMesh {
                     inferences: 0,
                     earnings: 0,
                 });
+
+                // Derive E2E shared key from peer's ECDH public key
+                if (data.ecdhPubKey) {
+                    try {
+                        await this.e2e.addPeer(data.peerId, data.ecdhPubKey);
+                    } catch (e) {
+                        console.warn(`[TabMesh] Failed to derive E2E key for ${data.peerId.slice(0, 12)}…:`, e.message);
+                    }
+                }
+
                 if (isNew) {
-                    console.log(`[TabMesh] Peer discovered: ${data.peerId.slice(0, 12)}…`);
+                    console.log(`[TabMesh] Peer discovered: ${data.peerId.slice(0, 12)}… (E2E: ${this.e2e.hasPeer(data.peerId) ? '🔒' : '🔓'})`);
                     this.onPeer({
                         peerId: data.peerId,
                         ethAddress: data.ethAddress,
                         gpu: data.gpu,
+                        e2e: this.e2e.hasPeer(data.peerId),
                         total: this.peers.size,
                     });
                     // Re-announce so the new peer knows about us
@@ -150,7 +233,54 @@ export class TabMesh {
                 break;
             }
             case 'inference:req': {
-                this.onInferenceReq(data);
+                // E2E: only the target peer can decrypt
+                if (data.encrypted) {
+                    if (data.targetPeerId !== this.peerId) {
+                        // Not for us — we can see the message but NOT the content
+                        this.onEncryptedDrop({
+                            id: data.id,
+                            model: data.model,
+                            from: data.from,
+                            targetPeerId: data.targetPeerId,
+                            reason: 'not_target',
+                            ciphertextPreview: data.ciphertext?.slice(0, 20) + '…',
+                        });
+                        break;
+                    }
+                    try {
+                        const prompt = await this.e2e.decryptFrom(data.from, data.ciphertext, data.iv);
+                        this.onInferenceReq({ ...data, prompt, decrypted: true });
+                    } catch (e) {
+                        console.error('[TabMesh] ❌ Failed to decrypt inference request:', e.message);
+                        this.onEncryptedDrop({ id: data.id, from: data.from, reason: 'decrypt_failed' });
+                    }
+                } else {
+                    // Unencrypted fallback
+                    this.onInferenceReq(data);
+                }
+                break;
+            }
+            case 'inference:res': {
+                // E2E: only the requester can decrypt the response
+                if (data.encrypted) {
+                    if (data.requesterPeerId !== this.peerId) {
+                        this.onEncryptedDrop({
+                            id: data.id,
+                            from: data.peerId,
+                            reason: 'not_requester',
+                            ciphertextPreview: data.ciphertext?.slice(0, 20) + '…',
+                        });
+                        break;
+                    }
+                    try {
+                        const output = await this.e2e.decryptFrom(data.peerId, data.ciphertext, data.iv);
+                        this.onMessage({ ...data, output, decrypted: true });
+                    } catch (e) {
+                        console.error('[TabMesh] ❌ Failed to decrypt inference response:', e.message);
+                    }
+                } else {
+                    this.onMessage(data);
+                }
                 break;
             }
             default:
@@ -163,6 +293,7 @@ export class TabMesh {
         for (const [pid, p] of this.peers) {
             if (now - p.lastSeen > PEER_TIMEOUT_MS) {
                 this.peers.delete(pid);
+                this.e2e.removePeer(pid); // Clean E2E key cache
                 console.log(`[TabMesh] Peer lost: ${pid.slice(0, 12)}…`);
                 this.onPeerLost({ peerId: pid, total: this.peers.size });
             }

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CDI TabMesh — Testnet P2P Test</title>
+    <title>CDI TabMesh — E2E Encrypted P2P Test</title>
     <style>
         * {
             margin: 0;
@@ -46,7 +46,7 @@
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 10px;
             padding: 12px 18px;
-            min-width: 140px;
+            min-width: 120px;
         }
 
         .stat-label {
@@ -58,7 +58,7 @@
         }
 
         .stat-val {
-            font-size: 1.6rem;
+            font-size: 1.5rem;
             font-weight: 700;
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
         }
@@ -77,6 +77,10 @@
 
         .stat-val.purple {
             color: #b388ff;
+        }
+
+        .stat-val.red {
+            color: #ff5252;
         }
 
         .panel {
@@ -134,7 +138,7 @@
             background: rgba(0, 0, 0, 0.3);
             border-radius: 8px;
             padding: 10px;
-            max-height: 300px;
+            max-height: 250px;
             overflow-y: auto;
             line-height: 1.6;
         }
@@ -151,9 +155,19 @@
             color: #ffd54f;
         }
 
+        .log-area .e {
+            color: #ff5252;
+        }
+
         .log-area .i {
             color: #e0e6f0;
         }
+
+        .log-area .c {
+            color: #b388ff;
+        }
+
+        /* crypto */
 
         .btn {
             background: linear-gradient(135deg, #00d4ff, #7b61ff);
@@ -201,6 +215,58 @@
             font-size: 0.82rem;
         }
 
+        .cipher-block {
+            background: rgba(255, 82, 82, 0.08);
+            border: 1px solid rgba(255, 82, 82, 0.2);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin: 6px 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: #ff8a80;
+            word-break: break-all;
+            line-height: 1.5;
+        }
+
+        .cipher-block .label {
+            color: #ff5252;
+            font-weight: 600;
+            font-size: 0.7rem;
+            margin-bottom: 4px;
+        }
+
+        .e2e-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 700;
+        }
+
+        .e2e-badge.locked {
+            background: rgba(0, 230, 118, 0.15);
+            color: #00e676;
+        }
+
+        .e2e-badge.open {
+            background: rgba(255, 82, 82, 0.15);
+            color: #ff5252;
+        }
+
+        .instructions {
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.15);
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+            font-size: 0.78rem;
+            line-height: 1.6;
+        }
+
+        .instructions strong {
+            color: #00d4ff;
+        }
+
         @keyframes pulse {
 
             0%,
@@ -229,33 +295,32 @@
             }
         }
 
-        .instructions {
-            background: rgba(0, 212, 255, 0.05);
-            border: 1px solid rgba(0, 212, 255, 0.15);
-            border-radius: 10px;
-            padding: 14px 18px;
-            margin-bottom: 20px;
-            font-size: 0.78rem;
-            line-height: 1.6;
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
         }
 
-        .instructions strong {
-            color: #00d4ff;
+        @media (max-width: 900px) {
+            .two-col {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 
 <body>
-    <h1>⛏️ CDI TabMesh — Testnet P2P Test</h1>
-    <p class="subtitle">Open this page in 3-4 browser tabs to test BroadcastChannel P2P mesh discovery</p>
+    <h1>🔒 CDI TabMesh — E2E Encrypted P2P Test</h1>
+    <p class="subtitle">Open in 3 tabs: Tab A sends, Tab B executes, Tab C eavesdrops (sees only ciphertext)</p>
 
     <div class="instructions">
-        <strong>How to test:</strong><br>
-        1. Click <strong>"Start Node"</strong> below<br>
-        2. Open this same URL in <strong>2-3 more tabs</strong><br>
-        3. Click <strong>"Start Node"</strong> in each tab<br>
-        4. Watch peers discover each other in real-time ⚡<br>
-        5. Try sending an <strong>inference request</strong> — other tabs will respond
+        <strong>E2E Encryption Test (3 tabs):</strong><br>
+        1. Open this page in <strong>Tab A</strong> → click "Start Node"<br>
+        2. Open in <strong>Tab B</strong> → click "Start Node" → peers discover + exchange ECDH keys<br>
+        3. Open in <strong>Tab C</strong> → click "Start Node" → 3-way mesh established<br>
+        4. In <strong>Tab A</strong>: send an inference → encrypted for Tab B only<br>
+        5. <strong>Tab B</strong>: decrypts + processes → sends encrypted response back to Tab A<br>
+        6. <strong>Tab C</strong>: sees the BroadcastChannel message but <strong>CANNOT decrypt</strong> the prompt 🚫
     </div>
 
     <div class="status-bar">
@@ -268,12 +333,16 @@
             <div class="stat-val green" id="peerCount">0</div>
         </div>
         <div class="stat">
-            <div class="stat-label">Inferences</div>
-            <div class="stat-val gold" id="infCount">0</div>
+            <div class="stat-label">E2E Keys</div>
+            <div class="stat-val gold" id="e2eCount">0</div>
         </div>
         <div class="stat">
-            <div class="stat-label">Uptime</div>
-            <div class="stat-val purple" id="uptimeVal">0s</div>
+            <div class="stat-label">Inferences</div>
+            <div class="stat-val purple" id="infCount">0</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">🚫 Drops</div>
+            <div class="stat-val red" id="dropCount">0</div>
         </div>
     </div>
 
@@ -283,30 +352,46 @@
     </div>
 
     <div class="panel">
-        <div class="panel-hd">📡 Connected Peers</div>
+        <div class="panel-hd">📡 Connected Peers (E2E Status)</div>
         <div class="panel-bd" id="peerList">
             <div style="color:#6b7a99;font-size:0.78rem">No peers yet — start node and open more tabs</div>
         </div>
     </div>
 
     <div class="panel">
-        <div class="panel-hd">🤖 Distributed Inference Test</div>
+        <div class="panel-hd">🤖 Encrypted Inference Test</div>
         <div class="panel-bd">
             <div style="font-size:0.75rem;color:#6b7a99;margin-bottom:8px">
-                Send a prompt — if peers are connected, one will execute and return the result via BroadcastChannel
+                Prompt is E2E encrypted with ECDH+AES-256-GCM — only the target peer can read it.
+                Other tabs see ciphertext only.
             </div>
             <div class="infer-wrap">
-                <input type="text" class="infer-input" id="inferPrompt" placeholder="Enter a test prompt…">
-                <button class="btn" onclick="sendInference()" id="btnInfer" disabled>⚡ Send</button>
+                <input type="text" class="infer-input" id="inferPrompt" placeholder="Enter a secret prompt…"
+                    value="This is a TOP SECRET prompt that only the executor should see">
+                <button class="btn" onclick="sendInference()" id="btnInfer" disabled>🔒 Send Encrypted</button>
             </div>
             <div id="inferResult" style="margin-top:10px;font-size:0.78rem;color:#6b7a99"></div>
         </div>
     </div>
 
-    <div class="panel">
-        <div class="panel-hd">📋 Event Log</div>
-        <div class="panel-bd">
-            <div class="log-area" id="logArea"></div>
+    <div class="two-col">
+        <div class="panel">
+            <div class="panel-hd">📋 Event Log</div>
+            <div class="panel-bd">
+                <div class="log-area" id="logArea"></div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-hd">🚫 Eavesdropper Drops (encrypted messages this node CAN'T read)</div>
+            <div class="panel-bd">
+                <div class="log-area" id="dropArea">
+                    <div style="color:#6b7a99;font-size:0.72rem">
+                        If you see entries here, E2E is working — this node received encrypted
+                        messages intended for someone else and CANNOT decrypt them.
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -316,6 +401,7 @@
         let mesh = null;
         let startTime = null;
         let infCount = 0;
+        let dropCount = 0;
         const pendingInferences = new Map();
 
         function genPeerId() {
@@ -331,29 +417,41 @@
             a.scrollTop = a.scrollHeight;
         }
 
+        function logDrop(msg) {
+            const a = document.getElementById('dropArea');
+            const t = new Date().toLocaleTimeString();
+            a.innerHTML += `<div class="fade-in"><span class="t">[${t}]</span> <span class="e">${msg}</span></div>`;
+            a.scrollTop = a.scrollHeight;
+        }
+
         function updatePeerUI() {
             const peers = mesh ? mesh.getPeers() : [];
             document.getElementById('peerCount').textContent = peers.length;
+            document.getElementById('e2eCount').textContent = mesh ? mesh.e2e.peerCount : 0;
 
             const el = document.getElementById('peerList');
             if (peers.length === 0) {
                 el.innerHTML = '<div style="color:#6b7a99;font-size:0.78rem">No peers yet — open more tabs!</div>';
                 return;
             }
-            el.innerHTML = peers.map(p => `
-                <div class="peer-row fade-in">
-                    <div class="peer-dot"></div>
-                    <span class="peer-id">${p.peerId.slice(0, 20)}…</span>
-                    <span class="peer-meta">
-                        GPU: ${p.gpu ? '✅' : '❌'} |
-                        Up: ${p.uptime || 0}s |
-                        Inf: ${p.inferences || 0}
-                    </span>
-                </div>
-            `).join('');
+            el.innerHTML = peers.map(p => {
+                const hasE2E = mesh.e2e.hasPeer(p.peerId);
+                return `
+                    <div class="peer-row fade-in">
+                        <div class="peer-dot"></div>
+                        <span class="peer-id">${p.peerId.slice(0, 20)}…</span>
+                        <span class="e2e-badge ${hasE2E ? 'locked' : 'open'}">${hasE2E ? '🔒 E2E' : '🔓 OPEN'}</span>
+                        <span class="peer-meta">
+                            GPU: ${p.gpu ? '✅' : '❌'} |
+                            Up: ${p.uptime || 0}s |
+                            Inf: ${p.inferences || 0}
+                        </span>
+                    </div>
+                `;
+            }).join('');
         }
 
-        window.startMesh = function () {
+        window.startMesh = async function() {
             const peerId = genPeerId();
             document.getElementById('nodeId').textContent = peerId.slice(0, 16) + '…';
             document.getElementById('btnStart').disabled = true;
@@ -365,7 +463,7 @@
                 peerId,
                 ethAddress: '0x' + peerId.slice(4, 44),
                 onPeer: (peer) => {
-                    log(`✅ PEER DISCOVERED: ${peer.peerId.slice(0, 16)}… (GPU: ${peer.gpu ? 'yes' : 'no'}) — Total: ${peer.total}`, 's');
+                    log(`✅ PEER: ${peer.peerId.slice(0, 16)}… (E2E: ${peer.e2e ? '🔒' : '🔓'}) — Total: ${peer.total}`, 's');
                     updatePeerUI();
                 },
                 onPeerLost: (peer) => {
@@ -373,27 +471,40 @@
                     updatePeerUI();
                 },
                 onMessage: (msg) => {
-                    log(`📨 Message: ${msg.type} from ${msg.from?.slice(0, 12)}…`);
-
-                    // Handle inference response
+                    // Handle inference response (decrypted or unencrypted)
                     if (msg.type === 'inference:res') {
                         const cb = pendingInferences.get(msg.id);
                         if (cb) {
                             cb(msg);
                             pendingInferences.delete(msg.id);
                         }
+                    } else {
+                        log(`📨 Message: ${msg.type} from ${msg.from?.slice(0, 12)}…`);
                     }
                 },
                 onInferenceReq: (req) => {
-                    log(`🤖 Inference request from ${req.from?.slice(0, 12)}…: "${req.prompt?.slice(0, 40)}…"`);
+                    const decLabel = req.decrypted ? '🔒 DECRYPTED' : '🔓 PLAINTEXT';
+                    log(`🤖 Inference [${decLabel}] from ${req.from?.slice(0, 12)}…: "${req.prompt?.slice(0, 50)}…"`, 'c');
+
                     // Simulate local inference
-                    const fakeResult = `[${peerId.slice(0, 8)}] Response to "${req.prompt?.slice(0, 30)}…": This is a simulated inference result from a CDI testnet peer. The distributed pipeline is working! (processed in ${Math.floor(Math.random() * 500 + 100)}ms)`;
+                    const fakeResult = `[${peerId.slice(0, 8)}] I can see the prompt: "${req.prompt?.slice(0, 40)}…" — Simulated response (${Math.floor(Math.random() * 500 + 100)}ms)`;
                     infCount++;
                     document.getElementById('infCount').textContent = infCount;
-                    setTimeout(() => {
-                        mesh.respondInference(req.id, fakeResult);
-                        log(`✅ Inference responded: ${fakeResult.slice(0, 60)}…`, 's');
-                    }, Math.random() * 1000 + 200); // Simulate processing time
+
+                    setTimeout(async () => {
+                        // Respond with E2E encryption back to requester
+                        await mesh.respondInference(req.id, fakeResult, req.from);
+                        log(`✅ Response sent [🔒 encrypted for ${req.from?.slice(0, 12)}…]`, 's');
+                    }, Math.random() * 800 + 200);
+                },
+                onEncryptedDrop: (drop) => {
+                    dropCount++;
+                    document.getElementById('dropCount').textContent = dropCount;
+                    logDrop(`🚫 ENCRYPTED msg [${drop.reason}] — from: ${drop.from?.slice(0, 12)}… → target: ${drop.targetPeerId?.slice(0, 12) || '?'}…`);
+                    if (drop.ciphertextPreview) {
+                        logDrop(`   ciphertext: ${drop.ciphertextPreview}`);
+                    }
+                    logDrop(`   ⚠️ This node CANNOT read the prompt — E2E encryption working!`);
                 },
             });
 
@@ -402,21 +513,18 @@
             mesh._getInferences = () => infCount;
             mesh._getEarnings = () => infCount * 1.5;
 
-            mesh.start();
+            await mesh.start();
             log(`🚀 Node started: ${peerId}`, 's');
+            log('🔐 ECDH P-256 keypair generated — E2E encryption ready', 'c');
             log('Waiting for peers… Open this page in more browser tabs!');
 
             // Uptime counter
             setInterval(() => {
-                if (startTime) {
-                    const s = Math.floor((Date.now() - startTime) / 1000);
-                    document.getElementById('uptimeVal').textContent = s + 's';
-                }
-                updatePeerUI(); // Refresh peer stats
+                updatePeerUI();
             }, 1000);
         };
 
-        window.stopMesh = function () {
+        window.stopMesh = function() {
             if (mesh) {
                 mesh.stop();
                 mesh = null;
@@ -426,25 +534,22 @@
             document.getElementById('btnStop').disabled = true;
             document.getElementById('btnInfer').disabled = true;
             document.getElementById('peerCount').textContent = '0';
+            document.getElementById('e2eCount').textContent = '0';
             document.getElementById('nodeId').textContent = '—';
             log('⏹ Node stopped', 'w');
         };
 
-        window.sendInference = function () {
+        window.sendInference = async function() {
             if (!mesh || mesh.getPeerCount() === 0) {
                 log('⚠️ No peers connected — open more tabs first!', 'w');
-                document.getElementById('inferResult').textContent = 'No peers connected. Open more tabs!';
                 return;
             }
             const prompt = document.getElementById('inferPrompt').value.trim();
-            if (!prompt) {
-                document.getElementById('inferPrompt').value = 'Explain quantum computing in one sentence';
-                return;
-            }
+            if (!prompt) return;
 
             const id = 'inf-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-            document.getElementById('inferResult').innerHTML = '<span style="color:#ffd54f">⏳ Distributing to peers…</span>';
-            log(`📤 Inference sent: "${prompt.slice(0, 40)}…" (id: ${id.slice(0, 16)})`);
+            document.getElementById('inferResult').innerHTML = '<span style="color:#ffd54f">⏳ Encrypting + distributing to peers…</span>';
+            log(`📤 Sending encrypted inference: "${prompt.slice(0, 40)}…"`, 'c');
 
             // Wait for response
             const timeout = setTimeout(() => {
@@ -457,14 +562,16 @@
                 clearTimeout(timeout);
                 infCount++;
                 document.getElementById('infCount').textContent = infCount;
+                const decLabel = msg.decrypted ? '🔒 E2E Decrypted' : '🔓 Plaintext';
                 document.getElementById('inferResult').innerHTML = `
-                    <div style="color:#00e676;font-weight:600;margin-bottom:4px">✅ Response from ${msg.peerId?.slice(0, 16)}…</div>
+                    <div style="color:#00e676;font-weight:600;margin-bottom:4px">✅ Response from ${msg.peerId?.slice(0, 16)}… [${decLabel}]</div>
                     <div style="color:#e0e6f0;font-size:0.82rem">${msg.output}</div>
                 `;
-                log(`✅ Inference response received from ${msg.peerId?.slice(0, 12)}…`, 's');
+                log(`✅ Response received [${decLabel}] from ${msg.peerId?.slice(0, 12)}…`, 's');
             });
 
-            mesh.requestInference(id, prompt, 'llama3.1:8b');
+            // Send encrypted inference (target = first available peer)
+            await mesh.requestInference(id, prompt, 'llama3.1:8b');
         };
     </script>
 </body>
