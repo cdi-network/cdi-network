@@ -28,6 +28,9 @@ import { TokenLedger } from '../token/TokenLedger.js';
 import { TokenSettlement } from '../token/TokenSettlement.js';
 import type { DynamicEpochManager } from '../token/DynamicEpochManager.js';
 import type { DynamicFeeOracle } from '../token/DynamicFeeOracle.js';
+import type { ModelRegistry } from '../registry/ModelRegistry.js';
+import type { ModelRouter } from '../routing/ModelRouter.js';
+import type { ContributionTracker } from '../token/ContributionTracker.js';
 
 /** Endpoint for a swarm node */
 export interface NodeEndpoint {
@@ -65,6 +68,16 @@ export interface InferenceResult {
     inferenceFee: number;
     requesterBalance: number;
     feePerNode: number;
+    modelId?: string;                        // which model was used
+    royaltiesDistributed?: number;           // CDI paid to contributors
+}
+
+/** Options for an inference request */
+export interface InferenceOptions {
+    modelId?: string;          // default: network's default model
+    inferenceFee?: number;     // override auto-fee
+    maxLatencyMs?: number;     // SLA constraint
+    priority?: 'low' | 'normal' | 'high';
 }
 
 export interface DistributedInferenceConfig {
@@ -80,6 +93,9 @@ export interface DistributedInferenceConfig {
     workerSecrets?: Map<string, bigint>; // nodeId → secret
     epochManager?: DynamicEpochManager;  // dynamic demand-driven epochs (optional)
     feeOracle?: DynamicFeeOracle;        // dynamic congestion-based fees (optional)
+    modelRegistry?: ModelRegistry;       // model catalog + fee multiplier (optional)
+    modelRouter?: ModelRouter;           // load-aware model routing (optional)
+    contributionTracker?: ContributionTracker; // CDI royalties for contributors (optional)
 }
 
 export class DistributedInferenceOrchestrator {
@@ -95,6 +111,9 @@ export class DistributedInferenceOrchestrator {
     private readonly nodes: Map<string, NodeEndpoint> = new Map();
     private readonly epochManager?: DynamicEpochManager;
     private readonly feeOracle?: DynamicFeeOracle;
+    private readonly modelRegistry?: ModelRegistry;
+    private readonly modelRouter?: ModelRouter;
+    private readonly contributionTracker?: ContributionTracker;
     private currentBlock = 0;
 
     constructor(config: DistributedInferenceConfig) {
@@ -118,6 +137,9 @@ export class DistributedInferenceOrchestrator {
         this.workerSecrets = config.workerSecrets ?? new Map();
         this.epochManager = config.epochManager;
         this.feeOracle = config.feeOracle;
+        this.modelRegistry = config.modelRegistry;
+        this.modelRouter = config.modelRouter;
+        this.contributionTracker = config.contributionTracker;
 
         // Register initial nodes
         for (const node of config.nodes) {
@@ -160,18 +182,31 @@ export class DistributedInferenceOrchestrator {
     async infer(
         prompt: string,
         requesterId: string = 'anonymous',
-        inferenceFee?: number,
+        optionsOrFee?: InferenceOptions | number,
     ): Promise<InferenceResult> {
         const startTime = performance.now();
 
-        // Resolve fee: use oracle if available, else use provided value, else 0
-        const resolvedFee = inferenceFee !== undefined
-            ? inferenceFee
+        // Normalize: support both legacy infer(p, r, fee) and new infer(p, r, { modelId, ... })
+        const options: InferenceOptions = typeof optionsOrFee === 'number'
+            ? { inferenceFee: optionsOrFee }
+            : optionsOrFee ?? {};
+
+        const modelId = options.modelId;
+
+        // Fee multiplier based on model size (larger models cost more CDI)
+        const feeMultiplier = (modelId && this.modelRegistry)
+            ? this.modelRegistry.getFeeMultiplier(modelId)
+            : 1.0;
+
+        // Resolve fee: oracle × model multiplier, or provided value, or 0
+        const baseFee = options.inferenceFee !== undefined
+            ? options.inferenceFee
             : this.feeOracle
                 ? this.feeOracle.calculateFee(
                     this.epochManager?.getUtilization() ?? 0,
                 )
                 : 0;
+        const resolvedFee = baseFee * feeMultiplier;
 
         // 1. Debit CDI from requester — like a Bitcoin tx fee
         // If balance insufficient, ledger.debit() throws → inference rejected
@@ -291,6 +326,8 @@ export class DistributedInferenceOrchestrator {
             inferenceFee: resolvedFee,
             requesterBalance,
             feePerNode,
+            modelId,
+            royaltiesDistributed: 0, // will be populated when ContributionTracker integrated into settlement
         };
     }
 
