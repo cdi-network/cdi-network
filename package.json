@@ -21,6 +21,7 @@
     "@orbitdb/core": "^3.0.2",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.2.2",
+    "@types/ws": "^8.18.1",
     "blockstore-core": "^6.1.2",
     "blockstore-fs": "^3.0.2",
     "datastore-core": "^11.0.2",
@@ -34,5 +35,8 @@
     "tsyringe": "^4.10.0",
     "typescript": "^5.9.3",
     "winston": "^3.19.0"
+  },
+  "dependencies": {
+    "ws": "^8.19.0"
   }
 }
