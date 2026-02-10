@@ -8,6 +8,9 @@
  */
 
 import { createHash, generateKeyPairSync, sign, verify, createPrivateKey, createPublicKey } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 
 export class LocalWallet {
     readonly peerId: string;
@@ -133,5 +136,43 @@ export class LocalWallet {
         const publicKey = new Uint8Array(Buffer.from(data.publicKey, 'hex'));
         const privateKeyDer = Buffer.from(data.privateKey, 'hex');
         return new LocalWallet(publicKey, privateKeyDer);
+    }
+
+    /**
+     * Save wallet to ~/.cdi/wallet.json
+     */
+    save(dir?: string): string {
+        const walletDir = dir ?? join(homedir(), '.cdi');
+        if (!existsSync(walletDir)) {
+            mkdirSync(walletDir, { recursive: true });
+        }
+        const filePath = join(walletDir, 'wallet.json');
+        const data = this.export();
+        writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+        return filePath;
+    }
+
+    /**
+     * Load wallet from ~/.cdi/wallet.json.
+     * Returns null if no wallet file exists.
+     */
+    static load(dir?: string): LocalWallet | null {
+        const walletDir = dir ?? join(homedir(), '.cdi');
+        const filePath = join(walletDir, 'wallet.json');
+        if (!existsSync(filePath)) return null;
+        const raw = readFileSync(filePath, 'utf-8');
+        const data = JSON.parse(raw);
+        return LocalWallet.import(data);
+    }
+
+    /**
+     * Load existing wallet or generate + save a new one.
+     */
+    static loadOrGenerate(dir?: string): LocalWallet {
+        const existing = LocalWallet.load(dir);
+        if (existing) return existing;
+        const wallet = LocalWallet.generate();
+        wallet.save(dir);
+        return wallet;
     }
 }

@@ -101,6 +101,8 @@ export interface NodeConfig {
     models: string[];
     maxConcurrentTasks: number;
     logLevel: 'debug' | 'info' | 'warn' | 'error';
+    walletDir?: string;          // default: ~/.cdi
+    apiPort?: number;            // REST API port, default: 3000
 }
 
 // ── Events (internal pub/sub) ───────────────────────────────

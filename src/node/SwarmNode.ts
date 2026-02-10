@@ -7,12 +7,30 @@ import { OllamaClientBuilder } from '../llm/OllamaClient.js';
 import type { OllamaClient } from '../llm/OllamaClient.js';
 import { CryptoManager } from '../crypto/CryptoManager.js';
 import { TaskStore } from '../store/TaskStore.js';
+import { OrbitDbStore, InMemoryStore } from '../store/OrbitDbStore.js';
 import { Worker } from '../swarm/Worker.js';
 import { SwarmOrchestrator } from '../swarm/SwarmOrchestrator.js';
+import { LocalWallet } from '../identity/LocalWallet.js';
+import { ModelRegistry } from '../registry/ModelRegistry.js';
+import { ModelRouter } from '../routing/ModelRouter.js';
+import { ContributionTracker } from '../token/ContributionTracker.js';
+import { TokenLedger } from '../token/TokenLedger.js';
+import { AutoBalancer } from '../routing/AutoBalancer.js';
+import type winston from 'winston';
 
 /**
  * SwarmNode — composes all modules into a single running P2P inference node.
  * Acts as both Producer (submits tasks) and Consumer (runs inference).
+ *
+ * Integrates:
+ *   - OrbitDB (P2P persistence)
+ *   - Ollama (local inference)
+ *   - LocalWallet (Ed25519 identity + CDI earnings)
+ *   - ModelRegistry (model catalog, persistent)
+ *   - ModelRouter (load-aware routing)
+ *   - ContributionTracker (85/15 reward split)
+ *   - AutoBalancer (network self-balancing)
+ *   - TokenLedger (CDI balances, persistent)
  */
 export class SwarmNode {
     private constructor(
@@ -22,8 +40,27 @@ export class SwarmNode {
         private readonly taskStore: TaskStore,
         private readonly worker: Worker,
         private readonly orchestrator: SwarmOrchestrator,
-        private readonly peerId: string,
+        private readonly _wallet: LocalWallet,
+        private readonly _modelRegistry: ModelRegistry,
+        private readonly _modelRouter: ModelRouter,
+        private readonly _contributionTracker: ContributionTracker,
+        private readonly _ledger: TokenLedger,
+        private readonly _autoBalancer: AutoBalancer,
+        private readonly logger: winston.Logger,
     ) { }
+
+    /** Wallet identity for this node */
+    get wallet(): LocalWallet { return this._wallet; }
+    /** Model catalog */
+    get modelRegistry(): ModelRegistry { return this._modelRegistry; }
+    /** Load-aware router */
+    get modelRouter(): ModelRouter { return this._modelRouter; }
+    /** Contribution tracker (royalties) */
+    get contributionTracker(): ContributionTracker { return this._contributionTracker; }
+    /** CDI ledger */
+    get ledger(): TokenLedger { return this._ledger; }
+    /** Auto-balancer */
+    get autoBalancer(): AutoBalancer { return this._autoBalancer; }
 
     /**
      * Factory: wires up all dependencies and returns a running node.
@@ -31,7 +68,13 @@ export class SwarmNode {
     static async create(config: NodeConfig): Promise<SwarmNode> {
         const logger = createLogger(config.logLevel, config.nodeId ?? 'swarm-node');
 
-        // 1. OrbitDB + Helia + libp2p
+        // 1. LocalWallet — load or generate identity
+        const walletDir = config.walletDir; // optional: defaults to ~/.cdi
+        const wallet = LocalWallet.loadOrGenerate(walletDir);
+        const peerId = wallet.peerId;
+        logger.info(`Wallet loaded`, { peerId: peerId.slice(0, 16) + '...' });
+
+        // 2. OrbitDB + Helia + libp2p
         const builder = new OrbitDbManagerBuilder().withDirectory(config.orbitDbDirectory);
         if (config.listenAddresses?.length) {
             builder.withListenAddresses(config.listenAddresses);
@@ -41,29 +84,37 @@ export class SwarmNode {
         }
         const orbitDbManager = await builder.build();
 
-        // 2. OllamaClient
+        // 3. Persistent stores via OrbitDB
+        const ledgerStore = await OrbitDbStore.create(orbitDbManager, 'cdi-ledger');
+        const registryStore = await OrbitDbStore.create(orbitDbManager, 'model-registry');
+
+        // 4. Core components
         const ollamaClient = new OllamaClientBuilder()
             .withHost(config.ollamaHost)
             .withPort(config.ollamaPort)
             .build();
 
-        // 3. CryptoManager
         const cryptoManager = new CryptoManager();
-
-        // 4. TaskStore
         const taskStore = new TaskStore(orbitDbManager);
         await taskStore.initialize();
 
-        const peerId = orbitDbManager.getPeerId();
+        // 5. Model management
+        const modelRegistry = new ModelRegistry(registryStore);
+        const modelRouter = new ModelRouter();
+        const contributionTracker = new ContributionTracker(modelRegistry);
+        const autoBalancer = new AutoBalancer();
 
-        // 5. Worker
+        // 6. Token economy
+        const ledger = new TokenLedger(ledgerStore);
+
+        // 7. Worker
         const worker = new Worker(taskStore as any, ollamaClient as any, {
             peerId,
             models: config.models,
             maxConcurrent: config.maxConcurrentTasks,
         });
 
-        // 6. SwarmOrchestrator
+        // 8. SwarmOrchestrator
         const orchestrator = new SwarmOrchestrator(taskStore as any, cryptoManager as any, {
             peerId,
             defaultModel: config.models[0],
@@ -72,7 +123,11 @@ export class SwarmNode {
         // Start the worker
         worker.start();
 
-        logger.info(`SwarmNode ready`, { peerId, models: config.models });
+        logger.info(`SwarmNode ready`, {
+            peerId: peerId.slice(0, 16) + '...',
+            models: config.models,
+            listenAddresses: config.listenAddresses,
+        });
 
         return new SwarmNode(
             orbitDbManager,
@@ -81,7 +136,13 @@ export class SwarmNode {
             taskStore,
             worker,
             orchestrator,
-            peerId,
+            wallet,
+            modelRegistry,
+            modelRouter,
+            contributionTracker,
+            ledger,
+            autoBalancer,
+            logger,
         );
     }
 
@@ -100,18 +161,27 @@ export class SwarmNode {
     }
 
     /**
-     * Get the peer ID of this node.
+     * Get the peer ID (wallet address) of this node.
      */
     getPeerId(): string {
-        return this.peerId;
+        return this._wallet.peerId;
+    }
+
+    /**
+     * Get CDI balance for this node.
+     */
+    async getBalance(): Promise<number> {
+        return this.ledger.getBalance(this._wallet.peerId);
     }
 
     /**
      * Gracefully shuts down all subsystems.
      */
     async shutdown(): Promise<void> {
+        this.logger.info('Shutting down...');
         this.worker.stop();
         await this.taskStore.close();
         await this.orbitDbManager.stop();
+        this.logger.info('SwarmNode stopped');
     }
 }
