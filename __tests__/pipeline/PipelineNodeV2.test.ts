@@ -33,20 +33,21 @@ describe('WS-P7b: PipelineNode v2 — Dual Mode', () => {
     });
 
     test('should use ollama mode when configured', async () => {
-        // Start mock Ollama server
+        // Start mock Ollama server (handles both embed and generate)
         mockOllama = await new Promise<http.Server>((resolve) => {
             const server = http.createServer((req, res) => {
-                if (req.url === '/api/embed') {
-                    let body = '';
-                    req.on('data', (c: Buffer) => { body += c.toString(); });
-                    req.on('end', () => {
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                let body = '';
+                req.on('data', (c: Buffer) => { body += c.toString(); });
+                req.on('end', () => {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    if (req.url === '/api/embed') {
                         res.end(JSON.stringify({ model: 'test', embeddings: [[0.5, 0.6, 0.7]] }));
-                    });
-                } else {
-                    res.writeHead(200);
-                    res.end('ok');
-                }
+                    } else if (req.url === '/api/generate') {
+                        res.end(JSON.stringify({ response: '0.5, 0.6, 0.7' }));
+                    } else {
+                        res.end('ok');
+                    }
+                });
             });
             server.listen(0, '127.0.0.1', () => resolve(server));
         });
@@ -62,6 +63,7 @@ describe('WS-P7b: PipelineNode v2 — Dual Mode', () => {
             ollamaHost: '127.0.0.1',
             ollamaPort,
             ollamaModel: 'test-model',
+            ollamaApiMode: 'embed',
         });
 
         expect(node.getComputeMode()).toBe('ollama');
@@ -133,5 +135,50 @@ describe('WS-P7b: PipelineNode v2 — Dual Mode', () => {
         expect(output.length).toBe(2);
         expect(output[0]).toBeCloseTo(1.0302, 3);
         expect(output[1]).toBeCloseTo(2.0604, 3);
+    });
+
+    // ── WS-P8a: ADVERTISE_HOST ──────────────────────────────
+
+    test('should use advertiseHost for registration instead of 127.0.0.1', async () => {
+        node = new PipelineNode({
+            nodeId: 'docker-node',
+            startLayer: 0,
+            endLayer: 1,
+            port: 0,
+            hmacSecret: 'secret',
+            advertiseHost: 'swarm-node-0',
+        });
+
+        await node.start();
+        const reg = node.getRegistration();
+        expect(reg.host).toBe('swarm-node-0');
+    });
+
+    test('should parse ADVERTISE_HOST from env', () => {
+        const origAdvHost = process.env.ADVERTISE_HOST;
+        process.env.ADVERTISE_HOST = 'my-container';
+        process.env.NODE_ID = 'env-adv-node';
+
+        try {
+            node = PipelineNode.fromEnv();
+            expect(node.getRegistration().host).toBe('my-container');
+        } finally {
+            if (origAdvHost === undefined) delete process.env.ADVERTISE_HOST;
+            else process.env.ADVERTISE_HOST = origAdvHost;
+            delete process.env.NODE_ID;
+        }
+    });
+
+    test('should default registration host to 127.0.0.1 when no advertiseHost', async () => {
+        node = new PipelineNode({
+            nodeId: 'default-host',
+            startLayer: 0,
+            endLayer: 0,
+            port: 0,
+            hmacSecret: 'secret',
+        });
+
+        await node.start();
+        expect(node.getRegistration().host).toBe('127.0.0.1');
     });
 });

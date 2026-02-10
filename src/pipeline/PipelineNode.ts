@@ -36,6 +36,7 @@ export interface PipelineNodeConfig {
     ollamaPort?: number;
     ollamaModel?: string;
     ollamaApiMode?: 'embed' | 'generate';
+    advertiseHost?: string;
     orbitDbDir?: string;
     bootstrapPeers?: string[];
 }
@@ -79,7 +80,7 @@ export class PipelineNode {
         this.registration = {
             nodeId: config.nodeId,
             peerId: config.nodeId,
-            host: '0.0.0.0',
+            host: config.advertiseHost ?? '0.0.0.0',
             port: config.port,
             startLayer: config.startLayer,
             endLayer: config.endLayer,
@@ -123,7 +124,7 @@ export class PipelineNode {
         if (portMatch) {
             this.registration.port = parseInt(portMatch[1], 10);
         }
-        this.registration.host = '127.0.0.1';
+        this.registration.host = this.config.advertiseHost ?? '127.0.0.1';
         this.registration.status = 'online';
 
         // OrbitDB self-registration
@@ -251,6 +252,7 @@ export class PipelineNode {
             ollamaPort: process.env.OLLAMA_PORT ? parseInt(process.env.OLLAMA_PORT, 10) : undefined,
             ollamaModel: process.env.OLLAMA_MODEL,
             ollamaApiMode: (process.env.OLLAMA_API_MODE as 'embed' | 'generate') ?? 'generate',
+            advertiseHost: process.env.ADVERTISE_HOST,
             orbitDbDir: process.env.ORBITDB_DIR,
             bootstrapPeers: process.env.BOOTSTRAP_PEERS
                 ? process.env.BOOTSTRAP_PEERS.split(',')
