@@ -1,12 +1,14 @@
 /**
  * InferenceToken — proof-of-inference mining with Bitcoin-like halving.
  *
- * Every verified forward pass through the pipeline mines new SWARM tokens.
- * Supply capped at 21M with halving every 210,000 blocks (inferences).
+ * Every verified forward pass through the pipeline mines new CDI
+ * (Common Distributed Inference) tokens.
+ * Supply capped at 21M with configurable halving interval.
  */
 
+export const CDI_TOKEN_NAME = 'CDI';
 export const MAX_SUPPLY = 21_000_000;
-export const HALVING_INTERVAL = 210_000;
+export const DEFAULT_HALVING_INTERVAL = 210_000;
 export const INITIAL_REWARD = 50;
 export const MIN_REWARD = 1e-8; // satoshi equivalent
 
@@ -28,13 +30,18 @@ export interface ZKProofLike {
 export class InferenceToken {
     private totalSupply = 0;
     private currentBlock = 0;
+    private readonly halvingInterval: number;
+
+    constructor(halvingInterval: number = DEFAULT_HALVING_INTERVAL) {
+        this.halvingInterval = halvingInterval;
+    }
 
     /**
      * Calculate block reward for a given block height.
      * Halves every HALVING_INTERVAL blocks, just like Bitcoin.
      */
     getBlockReward(blockHeight: number): number {
-        const epoch = Math.floor(blockHeight / HALVING_INTERVAL);
+        const epoch = Math.floor(blockHeight / this.halvingInterval);
         const reward = INITIAL_REWARD / Math.pow(2, epoch);
         return reward < MIN_REWARD ? 0 : reward;
     }
