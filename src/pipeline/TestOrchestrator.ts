@@ -1,8 +1,11 @@
 /**
- * TestOrchestrator — automated test harness for Docker swarm testing.
+ * TestOrchestrator v2 — automated test harness for Docker swarm testing.
  *
  * Connects to N running PipelineNode containers, runs inference,
  * verifies results, and reports metrics + token settlement.
+ *
+ * v2: Supports optional real OrbitDB store for TokenLedger instead of in-memory mock.
+ * Also supports configurable local compute function for Ollama mode verification.
  */
 
 import { ActivationRelayClient } from './ActivationRelay.js';
@@ -29,16 +32,49 @@ export interface SettlementReport {
     balances: Record<string, number>;
 }
 
+export type LedgerStoreProvider = {
+    put: (entry: any) => Promise<void>;
+    get: (id: string) => Promise<any>;
+    del: (id: string) => Promise<void>;
+    all: () => Promise<Array<{ key: string; value: any }>>;
+};
+
+export type LocalComputeFn = (input: Float32Array, layerIdx: number) => Float32Array;
+
 /**
- * Default compute function mirror — must match PipelineNode's default.
+ * Default compute function mirror — must match PipelineNode's simulated default.
  */
-function defaultLocalCompute(input: Float32Array, layerIdx: number): Float32Array {
+const defaultLocalCompute: LocalComputeFn = (input: Float32Array, layerIdx: number): Float32Array => {
     const scale = 1 + layerIdx * 0.01;
     const output = new Float32Array(input.length);
     for (let i = 0; i < input.length; i++) {
         output[i] = input[i] * scale;
     }
     return output;
+};
+
+/**
+ * Create an in-memory store (backwards compatible default).
+ */
+function createInMemoryStore(): LedgerStoreProvider {
+    const data = new Map<string, any>();
+    return {
+        put: async (entry: any) => { data.set(entry._id, entry); },
+        get: async (id: string) => data.get(id) ?? null,
+        del: async (id: string) => { data.delete(id); },
+        all: async () => Array.from(data.entries()).map(([key, value]) => ({ key, value })),
+    };
+}
+
+export interface TestOrchestratorConfig {
+    hmacSecret: string;
+    timeoutMs?: number;
+    /** Optional: provide a real store (e.g. OrbitDB KV) instead of in-memory */
+    ledgerStore?: LedgerStoreProvider;
+    /** Optional: provide a custom local compute function for verification */
+    localComputeFn?: LocalComputeFn;
+    /** Whether to skip local verification (useful for Ollama mode where output is non-deterministic) */
+    skipLocalVerification?: boolean;
 }
 
 export class TestOrchestrator {
@@ -46,21 +82,39 @@ export class TestOrchestrator {
     private readonly token: InferenceToken;
     private readonly ledger: TokenLedger;
     private readonly settlement: TokenSettlement;
+    private readonly localComputeFn: LocalComputeFn;
+    private readonly skipLocalVerification: boolean;
+    private readonly storeType: 'in-memory' | 'external';
 
-    constructor(hmacSecret: string, timeoutMs = 5000) {
-        this.client = new ActivationRelayClient({ hmacSecret, timeoutMs });
+    constructor(config: TestOrchestratorConfig) {
+        this.client = new ActivationRelayClient({ hmacSecret: config.hmacSecret, timeoutMs: config.timeoutMs ?? 5000 });
         this.token = new InferenceToken();
 
-        // In-memory mock store for testing
-        const data = new Map<string, any>();
-        const mockStore = {
-            put: async (entry: any) => { data.set(entry._id, entry); },
-            get: async (id: string) => data.get(id) ?? null,
-            del: async (id: string) => { data.delete(id); },
-            all: async () => Array.from(data.entries()).map(([key, value]) => ({ key, value })),
-        };
-        this.ledger = new TokenLedger(mockStore as any);
+        const store = config.ledgerStore ?? createInMemoryStore();
+        this.storeType = config.ledgerStore ? 'external' : 'in-memory';
+        this.ledger = new TokenLedger(store as any);
         this.settlement = new TokenSettlement(this.token, this.ledger);
+        this.localComputeFn = config.localComputeFn ?? defaultLocalCompute;
+        this.skipLocalVerification = config.skipLocalVerification ?? false;
+    }
+
+    /** For backward compat: simple constructor */
+    static simulated(hmacSecret: string, timeoutMs = 5000): TestOrchestrator {
+        return new TestOrchestrator({ hmacSecret, timeoutMs });
+    }
+
+    /** Factory: real OrbitDB-backed store */
+    static withStore(hmacSecret: string, store: LedgerStoreProvider, timeoutMs = 5000): TestOrchestrator {
+        return new TestOrchestrator({ hmacSecret, timeoutMs, ledgerStore: store });
+    }
+
+    /** Factory: Ollama mode (skip local verification) */
+    static ollamaMode(hmacSecret: string, timeoutMs = 30000): TestOrchestrator {
+        return new TestOrchestrator({ hmacSecret, timeoutMs, skipLocalVerification: true });
+    }
+
+    getStoreType(): string {
+        return this.storeType;
     }
 
     /**
@@ -92,7 +146,7 @@ export class TestOrchestrator {
     ): Float32Array {
         let current = input;
         for (let layer = startLayer; layer <= endLayer; layer++) {
-            current = defaultLocalCompute(current, layer);
+            current = this.localComputeFn(current, layer);
         }
         return current;
     }
@@ -127,13 +181,19 @@ export class TestOrchestrator {
     }
 
     /**
-     * Verify pipeline output matches local reference within tolerance.
+     * Verify pipeline output:
+     * - In simulated mode: matches local reference within tolerance
+     * - In ollama mode: just checks output is non-empty and finite
      */
     verifyResult(
         actual: Float32Array,
         expected: Float32Array,
         tolerance = 1e-4,
     ): boolean {
+        if (this.skipLocalVerification) {
+            // Ollama mode: output should be non-empty with valid numbers
+            return actual.length > 0 && actual.every(v => Number.isFinite(v));
+        }
         if (actual.length !== expected.length) return false;
         for (let i = 0; i < actual.length; i++) {
             if (Math.abs(actual[i] - expected[i]) > tolerance) return false;

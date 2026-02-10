@@ -25,13 +25,13 @@ describe('WS-P6c: TestOrchestrator', () => {
         const addr = await n0.start();
         nodes.push(n0);
 
-        const orch = new TestOrchestrator('test-secret');
+        const orch = TestOrchestrator.simulated('test-secret');
         const healthy = await orch.checkHealth([addr]);
         expect(healthy).toEqual([true]);
     });
 
     test('should compute local reference result', () => {
-        const orch = new TestOrchestrator('test-secret');
+        const orch = TestOrchestrator.simulated('test-secret');
         const input = new Float32Array([1.0, 2.0, 3.0]);
 
         // Reference: compute layers 0-2 locally
@@ -54,7 +54,7 @@ describe('WS-P6c: TestOrchestrator', () => {
         const a1 = await n1.start();
         nodes.push(n0, n1);
 
-        const orch = new TestOrchestrator('test-secret');
+        const orch = TestOrchestrator.simulated('test-secret');
         const input = new Float32Array([1, 2, 3, 4]);
         const result = await orch.runPipeline(input, [a0, a1]);
 
@@ -65,7 +65,7 @@ describe('WS-P6c: TestOrchestrator', () => {
     });
 
     test('should settle tokens after pipeline execution', async () => {
-        const orch = new TestOrchestrator('test-secret');
+        const orch = TestOrchestrator.simulated('test-secret');
         const settlement = await orch.settleAndReport(
             ['node-0', 'node-1', 'node-2'],
             0,
