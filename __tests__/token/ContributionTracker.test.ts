@@ -1,10 +1,19 @@
 /**
- * ContributionTracker — TDD tests
+ * ContributionTracker — TDD tests (Redesigned)
  *
- * Tests CDI royalty distribution for model contributors:
- * fine-tuning, LoRA, quantization, distillation.
+ * Tests CDI reward distribution with 85/15 provider/ecosystem split:
+ * - Upload contribution type
+ * - Usage-proportional rewards
+ * - Provider-first economics
+ * - Cascading improver shares
  */
-import { ContributionTracker, Contribution, RoyaltyDistribution } from '../../src/token/ContributionTracker';
+import {
+    ContributionTracker,
+    PROVIDER_SHARE,
+    ECOSYSTEM_SHARE,
+    UPLOADER_SHARE,
+    IMPROVER_SHARE,
+} from '../../src/token/ContributionTracker';
 import { ModelRegistry } from '../../src/registry/ModelRegistry';
 
 function createMockStore() {
@@ -25,185 +34,178 @@ describe('ContributionTracker', () => {
         registry = new ModelRegistry(createMockStore());
         tracker = new ContributionTracker(registry);
 
-        // Seed: base model
+        // Seed: base model with uploader
         await registry.register({
             modelId: 'llama3:8b', family: 'llama3', variant: '8b',
             capabilities: ['chat'], parameterCount: 8e9, vramRequired: 6000, layerCount: 32,
             contributorId: 'meta',
         });
-    });
 
-    // ── Registration ────────────────────────────────────
-
-    test('register a fine-tune contribution', async () => {
-        await registry.register({
-            modelId: 'llama3:8b-medical', family: 'llama3', variant: '8b-medical',
-            capabilities: ['chat', 'medical'],
-            parameterCount: 8e9, vramRequired: 6000, layerCount: 32,
-            parentModelId: 'llama3:8b',
-            contributorId: 'dr-smith',
-        });
-
-        const contribution = await tracker.registerContribution({
-            contributorId: 'dr-smith',
-            modelId: 'llama3:8b-medical',
-            parentModelId: 'llama3:8b',
-            type: 'fine-tune',
-        });
-
-        expect(contribution.contributorId).toBe('dr-smith');
-        expect(contribution.type).toBe('fine-tune');
-        expect(contribution.royaltyRate).toBeGreaterThan(0);
-    });
-
-    // ── Royalty Calculation ─────────────────────────────
-
-    test('calculate royalties for single contributor', async () => {
-        await registry.register({
-            modelId: 'llama3:8b-code', family: 'llama3', variant: '8b-code',
-            capabilities: ['chat', 'code'],
-            parameterCount: 8e9, vramRequired: 6000, layerCount: 32,
-            parentModelId: 'llama3:8b',
-            contributorId: 'alice',
-        });
-
+        // Register upload contribution
         await tracker.registerContribution({
-            contributorId: 'alice',
-            modelId: 'llama3:8b-code',
+            contributorId: 'meta',
+            modelId: 'llama3:8b',
             parentModelId: 'llama3:8b',
-            type: 'fine-tune',
+            type: 'upload',
         });
-
-        const inferenceFeeCDI = 1.0;
-        const distribution = await tracker.calculateRoyalties('llama3:8b-code', inferenceFeeCDI);
-
-        expect(distribution.length).toBeGreaterThan(0);
-
-        // Alice should get a share
-        const aliceShare = distribution.find(d => d.contributorId === 'alice');
-        expect(aliceShare).toBeDefined();
-        expect(aliceShare!.amount).toBeGreaterThan(0);
-
-        // Total royalties must not exceed the fee
-        const totalRoyalties = distribution.reduce((sum, d) => sum + d.amount, 0);
-        expect(totalRoyalties).toBeLessThanOrEqual(inferenceFeeCDI);
     });
 
-    test('cascading royalties: base → fine-tune → LoRA', async () => {
-        // Fine-tune on top of base
-        await registry.register({
-            modelId: 'llama3:8b-code', family: 'llama3', variant: '8b-code',
-            capabilities: ['chat', 'code'],
-            parameterCount: 8e9, vramRequired: 6000, layerCount: 32,
-            parentModelId: 'llama3:8b',
-            contributorId: 'alice',
-        });
+    // ── Constants ────────────────────────────────────────
 
-        // LoRA on top of fine-tune
-        await registry.register({
-            modelId: 'llama3:8b-code-sql', family: 'llama3', variant: '8b-code-sql',
-            capabilities: ['chat', 'code', 'sql'],
-            parameterCount: 8e9, vramRequired: 6100, layerCount: 32,
-            parentModelId: 'llama3:8b-code',
-            contributorId: 'bob',
-        });
-
-        await tracker.registerContribution({
-            contributorId: 'alice',
-            modelId: 'llama3:8b-code',
-            parentModelId: 'llama3:8b',
-            type: 'fine-tune',
-        });
-
-        await tracker.registerContribution({
-            contributorId: 'bob',
-            modelId: 'llama3:8b-code-sql',
-            parentModelId: 'llama3:8b-code',
-            type: 'lora',
-        });
-
-        const distribution = await tracker.calculateRoyalties('llama3:8b-code-sql', 1.0);
-
-        // Both alice and bob should get royalties
-        const aliceShare = distribution.find(d => d.contributorId === 'alice');
-        const bobShare = distribution.find(d => d.contributorId === 'bob');
-
-        expect(aliceShare).toBeDefined();
-        expect(bobShare).toBeDefined();
-
-        // Latest contributor (bob) should get more than upstream (alice)
-        expect(bobShare!.amount).toBeGreaterThan(aliceShare!.amount);
-
-        // Total ≤ fee
-        const total = distribution.reduce((sum, d) => sum + d.amount, 0);
-        expect(total).toBeLessThanOrEqual(1.0);
+    test('reward split constants sum correctly', () => {
+        expect(PROVIDER_SHARE + ECOSYSTEM_SHARE).toBeCloseTo(1.0);
+        expect(UPLOADER_SHARE + IMPROVER_SHARE).toBeCloseTo(1.0);
+        expect(PROVIDER_SHARE).toBe(0.85);
+        expect(ECOSYSTEM_SHARE).toBe(0.15);
     });
 
-    // ── Royalty Rates by Type ───────────────────────────
+    // ── Upload Contribution ─────────────────────────────
 
-    test('different contribution types have different royalty rates', async () => {
-        // Fine-tune
-        await registry.register({
-            modelId: 'ft-model', family: 'test', variant: 'ft',
-            capabilities: ['chat'], parameterCount: 8e9, vramRequired: 6000, layerCount: 32,
-            parentModelId: 'llama3:8b', contributorId: 'alice',
-        });
-        const ftContrib = await tracker.registerContribution({
-            contributorId: 'alice', modelId: 'ft-model',
-            parentModelId: 'llama3:8b', type: 'fine-tune',
-        });
-
-        // Quantization
-        await registry.register({
-            modelId: 'quant-model', family: 'test', variant: 'quant',
-            capabilities: ['chat'], parameterCount: 8e9, vramRequired: 3000, layerCount: 32,
-            parentModelId: 'llama3:8b', contributorId: 'charlie',
-        });
-        const quantContrib = await tracker.registerContribution({
-            contributorId: 'charlie', modelId: 'quant-model',
-            parentModelId: 'llama3:8b', type: 'quantization',
-        });
-
-        // Fine-tune should have higher royalty than quantization
-        expect(ftContrib.royaltyRate).toBeGreaterThan(quantContrib.royaltyRate);
+    test('register an upload contribution', async () => {
+        const contribs = tracker.getContributionsForModel('llama3:8b');
+        expect(contribs).toHaveLength(1);
+        expect(contribs[0].type).toBe('upload');
+        expect(contribs[0].contributorId).toBe('meta');
     });
 
-    // ── No Royalties for Base Model ─────────────────────
+    // ── 85/15 Split ─────────────────────────────────────
 
-    test('base model with no contributions returns empty royalties', async () => {
-        const distribution = await tracker.calculateRoyalties('llama3:8b', 1.0);
-        expect(distribution).toHaveLength(0);
+    test('85% goes to providers, 15% to ecosystem', async () => {
+        const fee = 1.0;
+        const dist = await tracker.calculateRoyalties(
+            'llama3:8b',
+            fee,
+            ['node-1', 'node-2'],
+        );
+
+        const providerTotal = dist
+            .filter(d => d.category === 'provider')
+            .reduce((sum, d) => sum + d.amount, 0);
+
+        const uploaderTotal = dist
+            .filter(d => d.category === 'uploader')
+            .reduce((sum, d) => sum + d.amount, 0);
+
+        expect(providerTotal).toBeCloseTo(0.85);
+        expect(uploaderTotal).toBeCloseTo(0.15 * 0.60); // 15% × 60% = 0.09
     });
 
-    // ── Contribution Lookup ─────────────────────────────
+    test('provider share split equally among nodes', async () => {
+        const dist = await tracker.calculateRoyalties(
+            'llama3:8b',
+            1.0,
+            ['node-1', 'node-2'],
+        );
 
-    test('get contributions for a specific model', async () => {
+        const providerEntries = dist.filter(d => d.category === 'provider');
+        expect(providerEntries).toHaveLength(2);
+        expect(providerEntries[0].amount).toBeCloseTo(0.425); // 0.85 / 2
+        expect(providerEntries[1].amount).toBeCloseTo(0.425);
+    });
+
+    // ── Uploader Gets Usage-Proportional Reward ─────────
+
+    test('uploader earns on every inference', async () => {
+        // Simulate 10 inferences
+        let totalUploaderReward = 0;
+        for (let i = 0; i < 10; i++) {
+            const dist = await tracker.calculateRoyalties('llama3:8b', 0.5, ['node-1']);
+            const uploaderShare = dist.find(d => d.category === 'uploader');
+            if (uploaderShare) totalUploaderReward += uploaderShare.amount;
+        }
+
+        // 10 × 0.5 × 0.15 × 0.60 = 0.45 CDI
+        expect(totalUploaderReward).toBeCloseTo(0.45);
+    });
+
+    // ── Improver Cascade ────────────────────────────────
+
+    test('improvers get share from ecosystem pool with cascade', async () => {
+        // Fine-tune on base
         await registry.register({
             modelId: 'llama3:8b-code', family: 'llama3', variant: '8b-code',
             capabilities: ['chat', 'code'],
             parameterCount: 8e9, vramRequired: 6000, layerCount: 32,
             parentModelId: 'llama3:8b', contributorId: 'alice',
         });
-
         await tracker.registerContribution({
             contributorId: 'alice', modelId: 'llama3:8b-code',
             parentModelId: 'llama3:8b', type: 'fine-tune',
         });
+        // Upload contribution for derived model
+        await tracker.registerContribution({
+            contributorId: 'alice', modelId: 'llama3:8b-code',
+            parentModelId: 'llama3:8b', type: 'upload',
+        });
 
-        const contribs = tracker.getContributionsForModel('llama3:8b-code');
-        expect(contribs).toHaveLength(1);
-        expect(contribs[0].contributorId).toBe('alice');
+        const dist = await tracker.calculateRoyalties('llama3:8b-code', 1.0, ['node-1']);
+
+        // Provider
+        const providerTotal = dist
+            .filter(d => d.category === 'provider')
+            .reduce((sum, d) => sum + d.amount, 0);
+        expect(providerTotal).toBeCloseTo(0.85);
+
+        // Improver (alice for fine-tune)
+        const improverEntries = dist.filter(d => d.category === 'improver');
+        expect(improverEntries.length).toBeGreaterThan(0);
+
+        // Total must not exceed fee
+        const total = dist.reduce((sum, d) => sum + d.amount, 0);
+        expect(total).toBeLessThanOrEqual(1.0);
     });
+
+    // ── No Uploader = No Ecosystem Payout ───────────────
+
+    test('model with no upload contribution gets no uploader reward', async () => {
+        await registry.register({
+            modelId: 'orphan:1b', family: 'orphan', variant: '1b',
+            capabilities: ['chat'], parameterCount: 1e9, vramRequired: 1000, layerCount: 12,
+        });
+        // No upload contribution registered!
+
+        const dist = await tracker.calculateRoyalties('orphan:1b', 1.0, ['node-1']);
+
+        const uploaderEntries = dist.filter(d => d.category === 'uploader');
+        expect(uploaderEntries).toHaveLength(0);
+
+        // But providers still get their 85%
+        const providerTotal = dist
+            .filter(d => d.category === 'provider')
+            .reduce((sum, d) => sum + d.amount, 0);
+        expect(providerTotal).toBeCloseTo(0.85);
+    });
+
+    // ── Different Contribution Types ────────────────────
+
+    test('different contribution types have different improver weights', async () => {
+        // LoRA on base
+        await registry.register({
+            modelId: 'lora-model', family: 'test', variant: 'lora',
+            capabilities: ['chat'], parameterCount: 8e9, vramRequired: 6100, layerCount: 32,
+            parentModelId: 'llama3:8b', contributorId: 'bob',
+        });
+
+        const ftContrib = await tracker.registerContribution({
+            contributorId: 'bob', modelId: 'lora-model',
+            parentModelId: 'llama3:8b', type: 'fine-tune',
+        });
+
+        const loraContrib = await tracker.registerContribution({
+            contributorId: 'charlie', modelId: 'lora-model',
+            parentModelId: 'llama3:8b', type: 'lora',
+        });
+
+        // fine-tune weight (0.50) > lora weight (0.30)
+        expect(ftContrib.royaltyRate).toBeGreaterThan(loraContrib.royaltyRate);
+    });
+
+    // ── Contributor Lookup ───────────────────────────────
 
     test('get all contributions by a contributor', async () => {
         await registry.register({
             modelId: 'model-a', family: 'test', variant: 'a',
             capabilities: ['chat'], parameterCount: 8e9, vramRequired: 6000, layerCount: 32,
-            parentModelId: 'llama3:8b', contributorId: 'alice',
-        });
-        await registry.register({
-            modelId: 'model-b', family: 'test', variant: 'b',
-            capabilities: ['code'], parameterCount: 8e9, vramRequired: 6000, layerCount: 32,
             parentModelId: 'llama3:8b', contributorId: 'alice',
         });
 
@@ -212,11 +214,13 @@ describe('ContributionTracker', () => {
             parentModelId: 'llama3:8b', type: 'fine-tune',
         });
         await tracker.registerContribution({
-            contributorId: 'alice', modelId: 'model-b',
-            parentModelId: 'llama3:8b', type: 'lora',
+            contributorId: 'alice', modelId: 'model-a',
+            parentModelId: 'llama3:8b', type: 'upload',
         });
 
         const contribs = tracker.getContributionsByContributor('alice');
         expect(contribs).toHaveLength(2);
+        expect(contribs.map(c => c.type)).toContain('upload');
+        expect(contribs.map(c => c.type)).toContain('fine-tune');
     });
 });

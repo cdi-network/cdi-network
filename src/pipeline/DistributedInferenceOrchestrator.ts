@@ -290,11 +290,34 @@ export class DistributedInferenceOrchestrator {
         };
         await this.settlement.settleInference(nodeIds, blockHeight, validProof);
 
-        // Distribute user fee to participating nodes (on top of block reward)
-        const feePerNode = participatingNodes.size > 0
-            ? resolvedFee / participatingNodes.size
-            : 0;
-        if (feePerNode > 0) {
+        // Distribute user fee: use ContributionTracker 85/15 split if available
+        let feePerNode = 0;
+        let royaltiesDistributed = 0;
+
+        if (resolvedFee > 0 && this.contributionTracker && modelId) {
+            // New economics: 85% providers, 15% ecosystem (uploader + improvers)
+            const distributions = await this.contributionTracker.calculateRoyalties(
+                modelId,
+                resolvedFee,
+                nodeIds,
+            );
+            for (const dist of distributions) {
+                await this.ledger.credit(dist.contributorId, dist.amount, 'fee', {
+                    from: requesterId,
+                    blockHeight,
+                    category: dist.category,
+                    modelId: dist.modelId,
+                });
+                if (dist.category === 'uploader' || dist.category === 'improver') {
+                    royaltiesDistributed += dist.amount;
+                }
+            }
+            feePerNode = distributions
+                .filter(d => d.category === 'provider')
+                .reduce((sum, d) => sum + d.amount, 0) / Math.max(nodeIds.length, 1);
+        } else if (resolvedFee > 0 && participatingNodes.size > 0) {
+            // Legacy: even split among providers
+            feePerNode = resolvedFee / participatingNodes.size;
             for (const nodeId of participatingNodes) {
                 await this.ledger.credit(nodeId, feePerNode, 'fee', {
                     from: requesterId,
@@ -327,7 +350,7 @@ export class DistributedInferenceOrchestrator {
             requesterBalance,
             feePerNode,
             modelId,
-            royaltiesDistributed: 0, // will be populated when ContributionTracker integrated into settlement
+            royaltiesDistributed,
         };
     }
 
