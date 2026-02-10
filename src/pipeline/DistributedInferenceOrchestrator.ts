@@ -26,6 +26,8 @@ import { ZkInferenceVerifier } from '../crypto/ZkInferenceVerifier.js';
 import { InferenceToken, type ZKProofLike, CDI_TOKEN_NAME } from '../token/InferenceToken.js';
 import { TokenLedger } from '../token/TokenLedger.js';
 import { TokenSettlement } from '../token/TokenSettlement.js';
+import type { DynamicEpochManager } from '../token/DynamicEpochManager.js';
+import type { DynamicFeeOracle } from '../token/DynamicFeeOracle.js';
 
 /** Endpoint for a swarm node */
 export interface NodeEndpoint {
@@ -76,6 +78,8 @@ export interface DistributedInferenceConfig {
     dimensions: number;
     maxChunkLength?: number;
     workerSecrets?: Map<string, bigint>; // nodeId → secret
+    epochManager?: DynamicEpochManager;  // dynamic demand-driven epochs (optional)
+    feeOracle?: DynamicFeeOracle;        // dynamic congestion-based fees (optional)
 }
 
 export class DistributedInferenceOrchestrator {
@@ -89,6 +93,8 @@ export class DistributedInferenceOrchestrator {
     private readonly inferenceFn: NodeInferenceFn;
     private readonly workerSecrets: Map<string, bigint>;
     private readonly nodes: Map<string, NodeEndpoint> = new Map();
+    private readonly epochManager?: DynamicEpochManager;
+    private readonly feeOracle?: DynamicFeeOracle;
     private currentBlock = 0;
 
     constructor(config: DistributedInferenceConfig) {
@@ -110,6 +116,8 @@ export class DistributedInferenceOrchestrator {
         this.settlement = new TokenSettlement(this.token, this.ledger);
         this.inferenceFn = config.inferenceFn;
         this.workerSecrets = config.workerSecrets ?? new Map();
+        this.epochManager = config.epochManager;
+        this.feeOracle = config.feeOracle;
 
         // Register initial nodes
         for (const node of config.nodes) {
@@ -152,16 +160,28 @@ export class DistributedInferenceOrchestrator {
     async infer(
         prompt: string,
         requesterId: string = 'anonymous',
-        inferenceFee: number = 0,
+        inferenceFee?: number,
     ): Promise<InferenceResult> {
         const startTime = performance.now();
 
+        // Resolve fee: use oracle if available, else use provided value, else 0
+        const resolvedFee = inferenceFee !== undefined
+            ? inferenceFee
+            : this.feeOracle
+                ? this.feeOracle.calculateFee(
+                    this.epochManager?.getUtilization() ?? 0,
+                )
+                : 0;
+
         // 1. Debit CDI from requester — like a Bitcoin tx fee
         // If balance insufficient, ledger.debit() throws → inference rejected
-        if (inferenceFee > 0) {
-            await this.ledger.debit(requesterId, inferenceFee, 'pay', {
+        if (resolvedFee > 0) {
+            await this.ledger.debit(requesterId, resolvedFee, 'pay', {
                 type: 'inference_fee',
                 prompt: prompt.slice(0, 50),
+                feeTier: this.feeOracle?.getTier(
+                    this.epochManager?.getUtilization() ?? 0,
+                ) ?? 'fixed',
             });
         }
 
@@ -170,8 +190,8 @@ export class DistributedInferenceOrchestrator {
 
         if (routings.length === 0) {
             // Refund on routing failure
-            if (inferenceFee > 0) {
-                await this.ledger.credit(requesterId, inferenceFee, 'refund', {
+            if (resolvedFee > 0) {
+                await this.ledger.credit(requesterId, resolvedFee, 'refund', {
                     reason: 'no_routings',
                 });
             }
@@ -224,6 +244,11 @@ export class DistributedInferenceOrchestrator {
         const blockHeight = this.currentBlock++;
         const nodeIds = [...participatingNodes];
 
+        // Record inference for dynamic epoch tracking
+        if (this.epochManager) {
+            this.epochManager.recordInference(blockHeight);
+        }
+
         const validProof: ZKProofLike = {
             outputCommitment: 'verified',
             expectedOutputHash: 'verified',
@@ -232,7 +257,7 @@ export class DistributedInferenceOrchestrator {
 
         // Distribute user fee to participating nodes (on top of block reward)
         const feePerNode = participatingNodes.size > 0
-            ? inferenceFee / participatingNodes.size
+            ? resolvedFee / participatingNodes.size
             : 0;
         if (feePerNode > 0) {
             for (const nodeId of participatingNodes) {
@@ -258,10 +283,12 @@ export class DistributedInferenceOrchestrator {
             proofVerifications,
             totalLatencyMs: performance.now() - startTime,
             blockHeight,
-            blockReward: this.token.getBlockReward(blockHeight),
+            blockReward: this.epochManager
+                ? this.epochManager.getBlockReward(this.token)
+                : this.token.getBlockReward(blockHeight),
             balances,
             requesterId,
-            inferenceFee,
+            inferenceFee: resolvedFee,
             requesterBalance,
             feePerNode,
         };
