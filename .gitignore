@@ -5,3 +5,7 @@ coverage
 .DS_Store
 build/circuits/
 bin/rapidsnark
+
+# Genesis miner root identity — NEVER push
+.secrets/
+
