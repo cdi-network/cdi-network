@@ -1,5 +1,5 @@
-# Real-mode docker-compose: 2 nodes + Ollama sidecar
-# Used for L1 real integration test
+# Real-mode docker-compose: 2 nodes + Ollama sidecar + OrbitDB registration
+# Used for L1/L2 real integration tests
 version: "3.8"
 
 networks:
@@ -8,6 +8,7 @@ networks:
 
 volumes:
   ollama-data:
+  orbitdb-shared:
 
 services:
   ollama:
@@ -40,12 +41,16 @@ services:
       LISTEN_PORT: "9000"
       HMAC_SECRET: "swarm-secret"
       COMPUTE_MODE: "ollama"
-      REGISTRY_MODE: "none"
+      REGISTRY_MODE: "orbitdb"
+      ADVERTISE_HOST: "swarm-node-0"
       OLLAMA_HOST: "ollama"
       OLLAMA_PORT: "11434"
       OLLAMA_MODEL: "tinyllama"
+      ORBITDB_DIR: "/app/orbitdb/node-0"
     ports:
       - "9000:9000"
+    volumes:
+      - orbitdb-shared:/app/orbitdb
     networks:
       - swarm-net
     restart: unless-stopped
@@ -63,12 +68,16 @@ services:
       LISTEN_PORT: "9000"
       HMAC_SECRET: "swarm-secret"
       COMPUTE_MODE: "ollama"
-      REGISTRY_MODE: "none"
+      REGISTRY_MODE: "orbitdb"
+      ADVERTISE_HOST: "swarm-node-1"
       OLLAMA_HOST: "ollama"
       OLLAMA_PORT: "11434"
       OLLAMA_MODEL: "tinyllama"
+      ORBITDB_DIR: "/app/orbitdb/node-1"
     ports:
       - "9001:9000"
+    volumes:
+      - orbitdb-shared:/app/orbitdb
     networks:
       - swarm-net
     restart: unless-stopped
