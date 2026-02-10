@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CDI TabMesh — Testnet P2P Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0a0e17;
+            color: #e0e6f0;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        h1 {
+            font-size: 1.4rem;
+            background: linear-gradient(135deg, #00d4ff, #7b61ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+        }
+
+        .subtitle {
+            font-size: 0.78rem;
+            color: #6b7a99;
+            margin-bottom: 20px;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 12px 18px;
+            min-width: 140px;
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #6b7a99;
+            margin-bottom: 2px;
+        }
+
+        .stat-val {
+            font-size: 1.6rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+
+        .stat-val.cyan {
+            color: #00d4ff;
+        }
+
+        .stat-val.gold {
+            color: #ffd54f;
+        }
+
+        .stat-val.green {
+            color: #00e676;
+        }
+
+        .stat-val.purple {
+            color: #b388ff;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .panel-hd {
+            padding: 10px 16px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .panel-bd {
+            padding: 12px 16px;
+        }
+
+        .peer-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.78rem;
+        }
+
+        .peer-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00e676;
+            flex-shrink: 0;
+            animation: pulse 2s infinite;
+        }
+
+        .peer-id {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            color: #00d4ff;
+        }
+
+        .peer-meta {
+            font-size: 0.68rem;
+            color: #6b7a99;
+            margin-left: auto;
+        }
+
+        .log-area {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+
+        .log-area .t {
+            color: #6b7a99;
+        }
+
+        .log-area .s {
+            color: #00e676;
+        }
+
+        .log-area .w {
+            color: #ffd54f;
+        }
+
+        .log-area .i {
+            color: #e0e6f0;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #00d4ff, #7b61ff);
+            color: #0a0e17;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .infer-wrap {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .infer-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #e0e6f0;
+            font-size: 0.82rem;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .instructions {
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.15);
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+            font-size: 0.78rem;
+            line-height: 1.6;
+        }
+
+        .instructions strong {
+            color: #00d4ff;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>⛏️ CDI TabMesh — Testnet P2P Test</h1>
+    <p class="subtitle">Open this page in 3-4 browser tabs to test BroadcastChannel P2P mesh discovery</p>
+
+    <div class="instructions">
+        <strong>How to test:</strong><br>
+        1. Click <strong>"Start Node"</strong> below<br>
+        2. Open this same URL in <strong>2-3 more tabs</strong><br>
+        3. Click <strong>"Start Node"</strong> in each tab<br>
+        4. Watch peers discover each other in real-time ⚡<br>
+        5. Try sending an <strong>inference request</strong> — other tabs will respond
+    </div>
+
+    <div class="status-bar">
+        <div class="stat">
+            <div class="stat-label">This Node</div>
+            <div class="stat-val cyan" id="nodeId">—</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Peers</div>
+            <div class="stat-val green" id="peerCount">0</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Inferences</div>
+            <div class="stat-val gold" id="infCount">0</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Uptime</div>
+            <div class="stat-val purple" id="uptimeVal">0s</div>
+        </div>
+    </div>
+
+    <div class="actions">
+        <button class="btn" id="btnStart" onclick="startMesh()">🚀 Start Node</button>
+        <button class="btn" id="btnStop" onclick="stopMesh()" disabled>⏹ Stop</button>
+    </div>
+
+    <div class="panel">
+        <div class="panel-hd">📡 Connected Peers</div>
+        <div class="panel-bd" id="peerList">
+            <div style="color:#6b7a99;font-size:0.78rem">No peers yet — start node and open more tabs</div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-hd">🤖 Distributed Inference Test</div>
+        <div class="panel-bd">
+            <div style="font-size:0.75rem;color:#6b7a99;margin-bottom:8px">
+                Send a prompt — if peers are connected, one will execute and return the result via BroadcastChannel
+            </div>
+            <div class="infer-wrap">
+                <input type="text" class="infer-input" id="inferPrompt" placeholder="Enter a test prompt…">
+                <button class="btn" onclick="sendInference()" id="btnInfer" disabled>⚡ Send</button>
+            </div>
+            <div id="inferResult" style="margin-top:10px;font-size:0.78rem;color:#6b7a99"></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-hd">📋 Event Log</div>
+        <div class="panel-bd">
+            <div class="log-area" id="logArea"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { TabMesh } from './browser/p2p/TabMesh.js';
+
+        let mesh = null;
+        let startTime = null;
+        let infCount = 0;
+        const pendingInferences = new Map();
+
+        function genPeerId() {
+            const arr = new Uint8Array(16);
+            crypto.getRandomValues(arr);
+            return 'CDI-' + Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 24);
+        }
+
+        function log(msg, level = 'i') {
+            const a = document.getElementById('logArea');
+            const t = new Date().toLocaleTimeString();
+            a.innerHTML += `<div class="fade-in"><span class="t">[${t}]</span> <span class="${level}">${msg}</span></div>`;
+            a.scrollTop = a.scrollHeight;
+        }
+
+        function updatePeerUI() {
+            const peers = mesh ? mesh.getPeers() : [];
+            document.getElementById('peerCount').textContent = peers.length;
+
+            const el = document.getElementById('peerList');
+            if (peers.length === 0) {
+                el.innerHTML = '<div style="color:#6b7a99;font-size:0.78rem">No peers yet — open more tabs!</div>';
+                return;
+            }
+            el.innerHTML = peers.map(p => `
+                <div class="peer-row fade-in">
+                    <div class="peer-dot"></div>
+                    <span class="peer-id">${p.peerId.slice(0, 20)}…</span>
+                    <span class="peer-meta">
+                        GPU: ${p.gpu ? '✅' : '❌'} |
+                        Up: ${p.uptime || 0}s |
+                        Inf: ${p.inferences || 0}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        window.startMesh = function () {
+            const peerId = genPeerId();
+            document.getElementById('nodeId').textContent = peerId.slice(0, 16) + '…';
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('btnStop').disabled = false;
+            document.getElementById('btnInfer').disabled = false;
+            startTime = Date.now();
+
+            mesh = new TabMesh({
+                peerId,
+                ethAddress: '0x' + peerId.slice(4, 44),
+                onPeer: (peer) => {
+                    log(`✅ PEER DISCOVERED: ${peer.peerId.slice(0, 16)}… (GPU: ${peer.gpu ? 'yes' : 'no'}) — Total: ${peer.total}`, 's');
+                    updatePeerUI();
+                },
+                onPeerLost: (peer) => {
+                    log(`❌ PEER LOST: ${peer.peerId.slice(0, 16)}… — Total: ${peer.total}`, 'w');
+                    updatePeerUI();
+                },
+                onMessage: (msg) => {
+                    log(`📨 Message: ${msg.type} from ${msg.from?.slice(0, 12)}…`);
+
+                    // Handle inference response
+                    if (msg.type === 'inference:res') {
+                        const cb = pendingInferences.get(msg.id);
+                        if (cb) {
+                            cb(msg);
+                            pendingInferences.delete(msg.id);
+                        }
+                    }
+                },
+                onInferenceReq: (req) => {
+                    log(`🤖 Inference request from ${req.from?.slice(0, 12)}…: "${req.prompt?.slice(0, 40)}…"`);
+                    // Simulate local inference
+                    const fakeResult = `[${peerId.slice(0, 8)}] Response to "${req.prompt?.slice(0, 30)}…": This is a simulated inference result from a CDI testnet peer. The distributed pipeline is working! (processed in ${Math.floor(Math.random() * 500 + 100)}ms)`;
+                    infCount++;
+                    document.getElementById('infCount').textContent = infCount;
+                    setTimeout(() => {
+                        mesh.respondInference(req.id, fakeResult);
+                        log(`✅ Inference responded: ${fakeResult.slice(0, 60)}…`, 's');
+                    }, Math.random() * 1000 + 200); // Simulate processing time
+                },
+            });
+
+            // Wire metrics
+            mesh._getUptime = () => Math.floor((Date.now() - startTime) / 1000);
+            mesh._getInferences = () => infCount;
+            mesh._getEarnings = () => infCount * 1.5;
+
+            mesh.start();
+            log(`🚀 Node started: ${peerId}`, 's');
+            log('Waiting for peers… Open this page in more browser tabs!');
+
+            // Uptime counter
+            setInterval(() => {
+                if (startTime) {
+                    const s = Math.floor((Date.now() - startTime) / 1000);
+                    document.getElementById('uptimeVal').textContent = s + 's';
+                }
+                updatePeerUI(); // Refresh peer stats
+            }, 1000);
+        };
+
+        window.stopMesh = function () {
+            if (mesh) {
+                mesh.stop();
+                mesh = null;
+            }
+            startTime = null;
+            document.getElementById('btnStart').disabled = false;
+            document.getElementById('btnStop').disabled = true;
+            document.getElementById('btnInfer').disabled = true;
+            document.getElementById('peerCount').textContent = '0';
+            document.getElementById('nodeId').textContent = '—';
+            log('⏹ Node stopped', 'w');
+        };
+
+        window.sendInference = function () {
+            if (!mesh || mesh.getPeerCount() === 0) {
+                log('⚠️ No peers connected — open more tabs first!', 'w');
+                document.getElementById('inferResult').textContent = 'No peers connected. Open more tabs!';
+                return;
+            }
+            const prompt = document.getElementById('inferPrompt').value.trim();
+            if (!prompt) {
+                document.getElementById('inferPrompt').value = 'Explain quantum computing in one sentence';
+                return;
+            }
+
+            const id = 'inf-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+            document.getElementById('inferResult').innerHTML = '<span style="color:#ffd54f">⏳ Distributing to peers…</span>';
+            log(`📤 Inference sent: "${prompt.slice(0, 40)}…" (id: ${id.slice(0, 16)})`);
+
+            // Wait for response
+            const timeout = setTimeout(() => {
+                pendingInferences.delete(id);
+                document.getElementById('inferResult').innerHTML = '<span style="color:#ff5252">⏰ Timeout — no peer responded in 10s</span>';
+                log('⏰ Inference timeout', 'w');
+            }, 10000);
+
+            pendingInferences.set(id, (msg) => {
+                clearTimeout(timeout);
+                infCount++;
+                document.getElementById('infCount').textContent = infCount;
+                document.getElementById('inferResult').innerHTML = `
+                    <div style="color:#00e676;font-weight:600;margin-bottom:4px">✅ Response from ${msg.peerId?.slice(0, 16)}…</div>
+                    <div style="color:#e0e6f0;font-size:0.82rem">${msg.output}</div>
+                `;
+                log(`✅ Inference response received from ${msg.peerId?.slice(0, 12)}…`, 's');
+            });
+
+            mesh.requestInference(id, prompt, 'llama3.1:8b');
+        };
+    </script>
+</body>
+
+</html>
