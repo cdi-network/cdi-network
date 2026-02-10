@@ -1,6 +1,6 @@
 import type { PipelineStage } from './types.js';
 
-export type ComputeFn = (input: Float32Array, layerIdx: number) => Float32Array;
+export type ComputeFn = (input: Float32Array, layerIdx: number) => Float32Array | Promise<Float32Array>;
 
 interface LayerServerConfig {
     nodeId: string;
@@ -29,8 +29,9 @@ export class LayerServer implements PipelineStage {
     async forward(input: Float32Array): Promise<Float32Array> {
         let current = input;
         for (let layer = this.startLayer; layer <= this.endLayer; layer++) {
-            current = this.computeFn(current, layer);
+            current = await this.computeFn(current, layer);
         }
         return current;
     }
 }
+
