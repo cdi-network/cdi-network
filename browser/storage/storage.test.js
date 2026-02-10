@@ -65,12 +65,16 @@ describe('HeliaManager', () => {
         const shard3 = new Uint8Array(40).fill(3);
 
         const cid1 = await helia.addShard(shard1);
+        // Delay to give shard2 a later creation time
+        await new Promise(r => setTimeout(r, 10));
         const cid2 = await helia.addShard(shard2);
 
-        // Access shard1 to make shard2 the LRU
+        // Delay, then access shard1 to update its lastAccess
+        await new Promise(r => setTimeout(r, 10));
         await helia.getShard(cid1);
 
-        // Adding shard3 should evict shard2 (LRU)
+        // Delay, then add shard3 — should evict shard2 (oldest lastAccess)
+        await new Promise(r => setTimeout(r, 10));
         const cid3 = await helia.addShard(shard3);
 
         assert.ok(helia.has(cid1), 'shard1 should remain (recently accessed)');
