@@ -1526,10 +1526,11 @@ gantt
 > **TODO (Async — managed by agents)**
 
 ### 8.1 Dedicated GitHub Account
-- [ ] Create dedicated Gmail account (e.g. `cdi-network-project@gmail.com`)
-- [ ] Create GitHub organization or account under the new Gmail
-- [ ] Create public repo `cdi-network` on the new account
-- [ ] Push `main` branch to the public repo
+### 8.1 Dedicated GitHub Account ✅
+- [x] Create dedicated Gmail account → `cdinetwork.project@gmail.com`
+- [x] Create GitHub account → `cdi-network`
+- [x] Create public repo → [cdi-network/cdi-network](https://github.com/cdi-network/cdi-network)
+- [x] Push `main` branch to the public repo (537 objects)
 - [ ] Set up GitHub Actions for CI (run all 161 tests)
 - [ ] Add MIT or Apache-2.0 LICENSE
 - [ ] Configure branch protection on `main`
@@ -1539,6 +1540,28 @@ gantt
 - [ ] X (Twitter) account
 - [ ] YouTube channel for demo walkthroughs
 - [ ] Content calendar for launch communications
+
+### 8.3 Testnet Model Testing (prerequisite for Mainnet)
+
+> [!IMPORTANT]
+> Before mainnet launch, all major models in the catalog must be tested on the testnet.
+
+- [ ] Deploy testnet with GenesisConfig (bootstrap relays + seed shards)
+- [ ] Test top-10 model families from GenesisUpload on testnet:
+  - [ ] LLaMA 3.1 (8B, 70B)
+  - [ ] Mistral / Mixtral
+  - [ ] Qwen 2.5
+  - [ ] DeepSeek R1 / V3
+  - [ ] Phi-3 / Phi-4
+  - [ ] Gemma 2
+  - [ ] StarCoder 2
+  - [ ] Whisper (audio)
+  - [ ] LLaVA (vision)
+  - [ ] Meditron (medical)
+- [ ] Verify end-to-end inference pipeline per model
+- [ ] CDI reward distribution validated per model
+- [ ] HealthMonitor dashboard shows healthy network
+- [ ] Security stack (rate limiting, reputation, Sybil) tested under load
 
 ---
 
@@ -1554,5 +1577,6 @@ gantt
 | **P5** Model Catalog | ModelSharder, ModelCatalog, GenesisUpload (40 models) | 16 | ✅ |
 | **P6** Security | RateLimiter, ReputationSystem, SybilGuard, ProofAggregator | 23 | ✅ |
 | **P7** Mainnet Launch | MigrationManager, GenesisBlock, TokenBridge | 13 | ✅ |
+| **Public Repo** | [github.com/cdi-network/cdi-network](https://github.com/cdi-network/cdi-network) | — | ✅ |
 | **TOTAL** | **31+ modules** | **161** | **✅ ALL GREEN** |
 
