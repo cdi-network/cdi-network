@@ -1,0 +1,141 @@
+# Real E2E: 4 nodes + Ollama — distributed inference with CDI fees
+# Each node handles a specific chunk (NOT a full replica)
+# The network auto-balances via HNSW routing
+version: "3.8"
+
+networks:
+  swarm-net:
+    driver: bridge
+
+volumes:
+  ollama-data:
+  orbitdb-shared:
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: swarm-ollama
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - swarm-net
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  node-0:
+    build: .
+    container_name: swarm-node-0
+    environment:
+      NODE_ID: node-0
+      START_LAYER: "0"
+      END_LAYER: "0"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+      COMPUTE_MODE: "ollama"
+      REGISTRY_MODE: "orbitdb"
+      ADVERTISE_HOST: "swarm-node-0"
+      OLLAMA_HOST: "ollama"
+      OLLAMA_PORT: "11434"
+      OLLAMA_MODEL: "tinyllama"
+      ORBITDB_DIR: "/app/orbitdb/node-0"
+    ports:
+      - "9000:9000"
+    volumes:
+      - orbitdb-shared:/app/orbitdb
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  node-1:
+    build: .
+    container_name: swarm-node-1
+    environment:
+      NODE_ID: node-1
+      START_LAYER: "1"
+      END_LAYER: "1"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+      COMPUTE_MODE: "ollama"
+      REGISTRY_MODE: "orbitdb"
+      ADVERTISE_HOST: "swarm-node-1"
+      OLLAMA_HOST: "ollama"
+      OLLAMA_PORT: "11434"
+      OLLAMA_MODEL: "tinyllama"
+      ORBITDB_DIR: "/app/orbitdb/node-1"
+    ports:
+      - "9001:9000"
+    volumes:
+      - orbitdb-shared:/app/orbitdb
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  node-2:
+    build: .
+    container_name: swarm-node-2
+    environment:
+      NODE_ID: node-2
+      START_LAYER: "2"
+      END_LAYER: "2"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+      COMPUTE_MODE: "ollama"
+      REGISTRY_MODE: "orbitdb"
+      ADVERTISE_HOST: "swarm-node-2"
+      OLLAMA_HOST: "ollama"
+      OLLAMA_PORT: "11434"
+      OLLAMA_MODEL: "tinyllama"
+      ORBITDB_DIR: "/app/orbitdb/node-2"
+    ports:
+      - "9002:9000"
+    volumes:
+      - orbitdb-shared:/app/orbitdb
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  node-3:
+    build: .
+    container_name: swarm-node-3
+    environment:
+      NODE_ID: node-3
+      START_LAYER: "3"
+      END_LAYER: "3"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+      COMPUTE_MODE: "ollama"
+      REGISTRY_MODE: "orbitdb"
+      ADVERTISE_HOST: "swarm-node-3"
+      OLLAMA_HOST: "ollama"
+      OLLAMA_PORT: "11434"
+      OLLAMA_MODEL: "tinyllama"
+      ORBITDB_DIR: "/app/orbitdb/node-3"
+    ports:
+      - "9003:9000"
+    volumes:
+      - orbitdb-shared:/app/orbitdb
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy

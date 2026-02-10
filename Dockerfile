@@ -14,6 +14,8 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
+# ZK circuit artifacts for Groth16 proofs
+COPY build/circuits/ ./build/circuits/
 
 # Core env vars (overridden by docker-compose)
 ENV NODE_ID=node-0

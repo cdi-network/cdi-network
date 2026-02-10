@@ -2,13 +2,19 @@
  * DistributedInferenceOrchestrator — integrates all components for
  * distributed, privacy-preserving, token-rewarded LLM inference.
  *
- * Flow:
- *   prompt → ChunkRouter → parallel node inference → ZK proofs → aggregate → CDI settlement
+ * Economic model (like Bitcoin):
+ *   - User PAYS CDI tokens to submit an inference request
+ *   - Nodes EARN CDI via: (a) block reward mining + (b) user fee distribution
+ *   - Insufficient CDI → inference rejected
  *
- * Each node:
- *   1. Receives its chunk (not the full prompt)
- *   2. Runs Ollama generate locally
- *   3. Returns result + ZK proof (Poseidon commitment of I/O + secret)
+ * Distribution model:
+ *   - Each node handles a specific chunk (NOT a full replica)
+ *   - The network auto-balances via HNSW routing as nodes join/leave
+ *   - Chunks are routed to specialist nodes based on embedding similarity
+ *
+ * Flow:
+ *   debit user CDI → ChunkRouter → parallel node inference → ZK proofs
+ *   → aggregate → mint CDI + distribute fees → return response
  *
  * The orchestrator never exposes one node's I/O to another.
  */
@@ -53,6 +59,10 @@ export interface InferenceResult {
     blockHeight: number;
     blockReward: number;
     balances: Record<string, number>;
+    requesterId: string;
+    inferenceFee: number;
+    requesterBalance: number;
+    feePerNode: number;
 }
 
 export interface DistributedInferenceConfig {
@@ -124,28 +134,51 @@ export class DistributedInferenceOrchestrator {
     }
 
     /**
-     * Full distributed inference pipeline.
+     * Full distributed inference pipeline with CDI fee payment.
      *
-     * 1. Chunk the prompt
-     * 2. Route each chunk to best expert node via HNSW
-     * 3. Each node runs inference on its chunk (parallel)
+     * 1. Debit CDI fee from requester (like Bitcoin tx fee)
+     * 2. Chunk the prompt → route to specialist nodes via HNSW
+     * 3. Each node runs inference on its chunk only (not a replica)
      * 4. Generate ZK proof for each node's I/O
      * 5. Verify all ZK proofs
      * 6. Aggregate text results
-     * 7. Mint CDI tokens and settle
+     * 7. Mint CDI block reward + distribute user fee to nodes
+     *
+     * @param prompt - User prompt to process
+     * @param requesterId - User wallet ID (must have sufficient CDI balance)
+     * @param inferenceFee - CDI tokens the user pays for this inference
+     * @throws If user has insufficient CDI balance
      */
-    async infer(prompt: string): Promise<InferenceResult> {
+    async infer(
+        prompt: string,
+        requesterId: string = 'anonymous',
+        inferenceFee: number = 0,
+    ): Promise<InferenceResult> {
         const startTime = performance.now();
 
-        // 1. Route prompt chunks to expert nodes
+        // 1. Debit CDI from requester — like a Bitcoin tx fee
+        // If balance insufficient, ledger.debit() throws → inference rejected
+        if (inferenceFee > 0) {
+            await this.ledger.debit(requesterId, inferenceFee, 'pay', {
+                type: 'inference_fee',
+                prompt: prompt.slice(0, 50),
+            });
+        }
+
+        // 2. Route prompt chunks to specialist expert nodes via HNSW
         const routings = await this.chunkRouter.route(prompt);
 
-        // If fewer chunks than nodes, ensure at least some coverage
         if (routings.length === 0) {
+            // Refund on routing failure
+            if (inferenceFee > 0) {
+                await this.ledger.credit(requesterId, inferenceFee, 'refund', {
+                    reason: 'no_routings',
+                });
+            }
             throw new Error('ChunkRouter produced no routings');
         }
 
-        // 2. Execute inference in parallel across nodes
+        // 3. Each node processes ONLY its assigned chunk (not a replica)
         const nodeResults: NodeInferenceResult[] = [];
         const participatingNodes = new Set<string>();
 
@@ -157,7 +190,7 @@ export class DistributedInferenceOrchestrator {
             // Node runs Ollama on its chunk — never sees other chunks
             const result = await this.inferenceFn(nodeId, routing.chunk);
 
-            // 3. Generate ZK proof: proves node processed this I/O
+            // 4. Generate ZK proof: proves node processed this I/O
             const workerSecret = this.workerSecrets.get(nodeId)!;
             const zkProof = await this.prover.prove(
                 result.inputTokens,
@@ -177,17 +210,17 @@ export class DistributedInferenceOrchestrator {
         const results = await Promise.all(inferencePromises);
         nodeResults.push(...results);
 
-        // 4. Verify all ZK proofs
+        // 5. Verify all ZK proofs
         const proofVerifications = new Map<string, boolean>();
         for (const result of nodeResults) {
             const valid = await this.verifier.verify(result.zkProof);
             proofVerifications.set(result.nodeId, valid);
         }
 
-        // 5. Aggregate text results into natural language response
+        // 6. Aggregate text results into natural language response
         const response = this.aggregateResults(nodeResults);
 
-        // 6. Token settlement — mint CDI and distribute
+        // 7. Token settlement — mint CDI block reward + distribute user fee
         const blockHeight = this.currentBlock++;
         const nodeIds = [...participatingNodes];
 
@@ -197,11 +230,26 @@ export class DistributedInferenceOrchestrator {
         };
         await this.settlement.settleInference(nodeIds, blockHeight, validProof);
 
+        // Distribute user fee to participating nodes (on top of block reward)
+        const feePerNode = participatingNodes.size > 0
+            ? inferenceFee / participatingNodes.size
+            : 0;
+        if (feePerNode > 0) {
+            for (const nodeId of participatingNodes) {
+                await this.ledger.credit(nodeId, feePerNode, 'fee', {
+                    from: requesterId,
+                    blockHeight,
+                });
+            }
+        }
+
         // Collect balances
         const balances: Record<string, number> = {};
         for (const [id] of this.nodes) {
             balances[id] = await this.ledger.getBalance(id);
         }
+
+        const requesterBalance = await this.ledger.getBalance(requesterId);
 
         return {
             prompt,
@@ -212,6 +260,10 @@ export class DistributedInferenceOrchestrator {
             blockHeight,
             blockReward: this.token.getBlockReward(blockHeight),
             balances,
+            requesterId,
+            inferenceFee,
+            requesterBalance,
+            feePerNode,
         };
     }
 
