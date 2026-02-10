@@ -1,0 +1,288 @@
+# Auto-generated: 20 nodes, 60 layers, 3 layers/node
+version: "3.8"
+
+networks:
+  swarm-net:
+    driver: bridge
+
+services:
+  node-0:
+    build: .
+    container_name: swarm-node-0
+    environment:
+      NODE_ID: node-0
+      START_LAYER: "0"
+      END_LAYER: "2"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9000:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-1:
+    build: .
+    container_name: swarm-node-1
+    environment:
+      NODE_ID: node-1
+      START_LAYER: "3"
+      END_LAYER: "5"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9001:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-2:
+    build: .
+    container_name: swarm-node-2
+    environment:
+      NODE_ID: node-2
+      START_LAYER: "6"
+      END_LAYER: "8"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9002:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-3:
+    build: .
+    container_name: swarm-node-3
+    environment:
+      NODE_ID: node-3
+      START_LAYER: "9"
+      END_LAYER: "11"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9003:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-4:
+    build: .
+    container_name: swarm-node-4
+    environment:
+      NODE_ID: node-4
+      START_LAYER: "12"
+      END_LAYER: "14"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9004:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-5:
+    build: .
+    container_name: swarm-node-5
+    environment:
+      NODE_ID: node-5
+      START_LAYER: "15"
+      END_LAYER: "17"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9005:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-6:
+    build: .
+    container_name: swarm-node-6
+    environment:
+      NODE_ID: node-6
+      START_LAYER: "18"
+      END_LAYER: "20"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9006:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-7:
+    build: .
+    container_name: swarm-node-7
+    environment:
+      NODE_ID: node-7
+      START_LAYER: "21"
+      END_LAYER: "23"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9007:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-8:
+    build: .
+    container_name: swarm-node-8
+    environment:
+      NODE_ID: node-8
+      START_LAYER: "24"
+      END_LAYER: "26"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9008:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-9:
+    build: .
+    container_name: swarm-node-9
+    environment:
+      NODE_ID: node-9
+      START_LAYER: "27"
+      END_LAYER: "29"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9009:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-10:
+    build: .
+    container_name: swarm-node-10
+    environment:
+      NODE_ID: node-10
+      START_LAYER: "30"
+      END_LAYER: "32"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9010:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-11:
+    build: .
+    container_name: swarm-node-11
+    environment:
+      NODE_ID: node-11
+      START_LAYER: "33"
+      END_LAYER: "35"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9011:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-12:
+    build: .
+    container_name: swarm-node-12
+    environment:
+      NODE_ID: node-12
+      START_LAYER: "36"
+      END_LAYER: "38"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9012:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-13:
+    build: .
+    container_name: swarm-node-13
+    environment:
+      NODE_ID: node-13
+      START_LAYER: "39"
+      END_LAYER: "41"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9013:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-14:
+    build: .
+    container_name: swarm-node-14
+    environment:
+      NODE_ID: node-14
+      START_LAYER: "42"
+      END_LAYER: "44"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9014:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-15:
+    build: .
+    container_name: swarm-node-15
+    environment:
+      NODE_ID: node-15
+      START_LAYER: "45"
+      END_LAYER: "47"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9015:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-16:
+    build: .
+    container_name: swarm-node-16
+    environment:
+      NODE_ID: node-16
+      START_LAYER: "48"
+      END_LAYER: "50"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9016:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-17:
+    build: .
+    container_name: swarm-node-17
+    environment:
+      NODE_ID: node-17
+      START_LAYER: "51"
+      END_LAYER: "53"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9017:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-18:
+    build: .
+    container_name: swarm-node-18
+    environment:
+      NODE_ID: node-18
+      START_LAYER: "54"
+      END_LAYER: "56"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9018:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+  node-19:
+    build: .
+    container_name: swarm-node-19
+    environment:
+      NODE_ID: node-19
+      START_LAYER: "57"
+      END_LAYER: "59"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9019:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
