@@ -4,574 +4,695 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CDI TabMesh — E2E Encrypted P2P Test</title>
+    <title>CDI TabMesh — In-Browser Inference</title>
     <style>
+        :root {
+            --bg: #0a0e17;
+            --card: #111827;
+            --border: #1f2937;
+            --accent: #06b6d4;
+            --gold: #f59e0b;
+            --green: #10b981;
+            --red: #ef4444;
+            --text: #e5e7eb;
+            --dim: #6b7280;
+        }
+
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
 
         body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: #0a0e17;
-            color: #e0e6f0;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 20px;
             min-height: 100vh;
-            padding: 24px;
         }
 
         h1 {
             font-size: 1.4rem;
-            background: linear-gradient(135deg, #00d4ff, #7b61ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 4px;
-        }
-
-        .subtitle {
-            font-size: 0.78rem;
-            color: #6b7a99;
-            margin-bottom: 20px;
-        }
-
-        .status-bar {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .stat {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 10px;
-            padding: 12px 18px;
-            min-width: 120px;
-        }
-
-        .stat-label {
-            font-size: 0.65rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #6b7a99;
-            margin-bottom: 2px;
-        }
-
-        .stat-val {
-            font-size: 1.5rem;
-            font-weight: 700;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-        }
-
-        .stat-val.cyan {
-            color: #00d4ff;
-        }
-
-        .stat-val.gold {
-            color: #ffd54f;
-        }
-
-        .stat-val.green {
-            color: #00e676;
-        }
-
-        .stat-val.purple {
-            color: #b388ff;
-        }
-
-        .stat-val.red {
-            color: #ff5252;
-        }
-
-        .panel {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 12px;
             margin-bottom: 16px;
-            overflow: hidden;
         }
 
-        .panel-hd {
-            padding: 10px 16px;
-            font-size: 0.82rem;
-            font-weight: 600;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .panel-bd {
-            padding: 12px 16px;
-        }
-
-        .peer-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-            font-size: 0.78rem;
-        }
-
-        .peer-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #00e676;
-            flex-shrink: 0;
-            animation: pulse 2s infinite;
-        }
-
-        .peer-id {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.72rem;
-            color: #00d4ff;
-        }
-
-        .peer-meta {
-            font-size: 0.68rem;
-            color: #6b7a99;
-            margin-left: auto;
-        }
-
-        .log-area {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.72rem;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 8px;
-            padding: 10px;
-            max-height: 250px;
-            overflow-y: auto;
-            line-height: 1.6;
-        }
-
-        .log-area .t {
-            color: #6b7a99;
-        }
-
-        .log-area .s {
-            color: #00e676;
-        }
-
-        .log-area .w {
-            color: #ffd54f;
-        }
-
-        .log-area .e {
-            color: #ff5252;
-        }
-
-        .log-area .i {
-            color: #e0e6f0;
-        }
-
-        .log-area .c {
-            color: #b388ff;
-        }
-
-        /* crypto */
-
-        .btn {
-            background: linear-gradient(135deg, #00d4ff, #7b61ff);
-            color: #0a0e17;
-            border: none;
-            padding: 10px 24px;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-
-        .btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .actions {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .infer-wrap {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .infer-input {
-            flex: 1;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            padding: 8px 12px;
-            color: #e0e6f0;
-            font-size: 0.82rem;
-        }
-
-        .cipher-block {
-            background: rgba(255, 82, 82, 0.08);
-            border: 1px solid rgba(255, 82, 82, 0.2);
-            border-radius: 8px;
-            padding: 8px 12px;
-            margin: 6px 0;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.65rem;
-            color: #ff8a80;
-            word-break: break-all;
-            line-height: 1.5;
-        }
-
-        .cipher-block .label {
-            color: #ff5252;
-            font-weight: 600;
+        h1 span.badge {
             font-size: 0.7rem;
-            margin-bottom: 4px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            vertical-align: middle;
+            margin-left: 8px;
         }
 
-        .e2e-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.65rem;
-            font-weight: 700;
+        .badge-e2e {
+            background: rgba(6, 182, 212, 0.2);
+            color: var(--accent);
         }
 
-        .e2e-badge.locked {
-            background: rgba(0, 230, 118, 0.15);
-            color: #00e676;
+        .badge-webgpu {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--green);
         }
 
-        .e2e-badge.open {
-            background: rgba(255, 82, 82, 0.15);
-            color: #ff5252;
+        .badge-no-webgpu {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--red);
         }
 
-        .instructions {
-            background: rgba(0, 212, 255, 0.05);
-            border: 1px solid rgba(0, 212, 255, 0.15);
-            border-radius: 10px;
-            padding: 14px 18px;
-            margin-bottom: 20px;
-            font-size: 0.78rem;
-            line-height: 1.6;
-        }
-
-        .instructions strong {
-            color: #00d4ff;
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.4;
-            }
-        }
-
-        .fade-in {
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(8px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .two-col {
+        .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 16px;
+            margin-bottom: 16px;
         }
 
         @media (max-width: 900px) {
-            .two-col {
+            .grid {
                 grid-template-columns: 1fr;
             }
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .card h2 {
+            font-size: 0.9rem;
+            color: var(--dim);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        #nodeInfo {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        #nodeInfo .stat {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        #nodeInfo .stat b {
+            color: var(--accent);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 8px 18px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            filter: brightness(1.15);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-gold {
+            background: var(--gold);
+            color: #000;
+        }
+
+        .btn-gold:hover {
+            filter: brightness(1.15);
+        }
+
+        .btn-gold:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 0.75rem;
+        }
+
+        select,
+        input,
+        textarea {
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            width: 100%;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+            font-family: inherit;
+        }
+
+        .progress-wrap {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            height: 28px;
+            overflow: hidden;
+            position: relative;
+            margin: 8px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--green));
+            border-radius: 8px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .log {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            line-height: 1.5;
+        }
+
+        .log .ts {
+            color: var(--dim);
+        }
+
+        .log .e2e {
+            color: var(--accent);
+        }
+
+        .log .model {
+            color: var(--gold);
+        }
+
+        .log .err {
+            color: var(--red);
+        }
+
+        .log .ok {
+            color: var(--green);
+        }
+
+        .peer-list {
+            list-style: none;
+        }
+
+        .peer-list li {
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.8rem;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .peer-badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 6px;
+        }
+
+        .peer-badge-e2e {
+            background: rgba(6, 182, 212, 0.2);
+            color: var(--accent);
+        }
+
+        .peer-badge-model {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--gold);
+        }
+
+        .inference-output {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            min-height: 80px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .inference-output .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background: var(--accent);
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .stats-row .stat-pill {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+        }
+
+        .stats-row .stat-pill b {
+            color: var(--gold);
+        }
+
+        .drop-panel {
+            background: rgba(239, 68, 68, 0.05);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 8px;
+        }
+
+        .drop-panel h3 {
+            font-size: 0.8rem;
+            color: var(--red);
+            margin-bottom: 6px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .mt {
+            margin-top: 12px;
         }
     </style>
 </head>
 
 <body>
-    <h1>🔒 CDI TabMesh — E2E Encrypted P2P Test</h1>
-    <p class="subtitle">Open in 3 tabs: Tab A sends, Tab B executes, Tab C eavesdrops (sees only ciphertext)</p>
+    <h1>
+        🌐 CDI TabMesh — In-Browser Inference
+        <span class="badge badge-e2e">🔒 E2E Encrypted</span>
+        <span id="gpuBadge" class="badge badge-no-webgpu">⏳ Checking WebGPU…</span>
+    </h1>
 
-    <div class="instructions">
-        <strong>E2E Encryption Test (3 tabs):</strong><br>
-        1. Open this page in <strong>Tab A</strong> → click "Start Node"<br>
-        2. Open in <strong>Tab B</strong> → click "Start Node" → peers discover + exchange ECDH keys<br>
-        3. Open in <strong>Tab C</strong> → click "Start Node" → 3-way mesh established<br>
-        4. In <strong>Tab A</strong>: send an inference → encrypted for Tab B only<br>
-        5. <strong>Tab B</strong>: decrypts + processes → sends encrypted response back to Tab A<br>
-        6. <strong>Tab C</strong>: sees the BroadcastChannel message but <strong>CANNOT decrypt</strong> the prompt 🚫
-    </div>
-
-    <div class="status-bar">
-        <div class="stat">
-            <div class="stat-label">This Node</div>
-            <div class="stat-val cyan" id="nodeId">—</div>
-        </div>
-        <div class="stat">
-            <div class="stat-label">Peers</div>
-            <div class="stat-val green" id="peerCount">0</div>
-        </div>
-        <div class="stat">
-            <div class="stat-label">E2E Keys</div>
-            <div class="stat-val gold" id="e2eCount">0</div>
-        </div>
-        <div class="stat">
-            <div class="stat-label">Inferences</div>
-            <div class="stat-val purple" id="infCount">0</div>
-        </div>
-        <div class="stat">
-            <div class="stat-label">🚫 Drops</div>
-            <div class="stat-val red" id="dropCount">0</div>
-        </div>
-    </div>
-
-    <div class="actions">
-        <button class="btn" id="btnStart" onclick="startMesh()">🚀 Start Node</button>
-        <button class="btn" id="btnStop" onclick="stopMesh()" disabled>⏹ Stop</button>
-    </div>
-
-    <div class="panel">
-        <div class="panel-hd">📡 Connected Peers (E2E Status)</div>
-        <div class="panel-bd" id="peerList">
-            <div style="color:#6b7a99;font-size:0.78rem">No peers yet — start node and open more tabs</div>
-        </div>
-    </div>
-
-    <div class="panel">
-        <div class="panel-hd">🤖 Encrypted Inference Test</div>
-        <div class="panel-bd">
-            <div style="font-size:0.75rem;color:#6b7a99;margin-bottom:8px">
-                Prompt is E2E encrypted with ECDH+AES-256-GCM — only the target peer can read it.
-                Other tabs see ciphertext only.
+    <div class="grid">
+        <!-- Node Info -->
+        <div class="card">
+            <h2>⚡ This Node</h2>
+            <div class="controls">
+                <button id="btnStart" class="btn btn-primary" onclick="startNode()">🚀 Start Node</button>
+                <span id="nodeStatus" style="font-size:0.8rem; color:var(--dim);">Not started</span>
             </div>
-            <div class="infer-wrap">
-                <input type="text" class="infer-input" id="inferPrompt" placeholder="Enter a secret prompt…"
-                    value="This is a TOP SECRET prompt that only the executor should see">
-                <button class="btn" onclick="sendInference()" id="btnInfer" disabled>🔒 Send Encrypted</button>
-            </div>
-            <div id="inferResult" style="margin-top:10px;font-size:0.78rem;color:#6b7a99"></div>
-        </div>
-    </div>
-
-    <div class="two-col">
-        <div class="panel">
-            <div class="panel-hd">📋 Event Log</div>
-            <div class="panel-bd">
-                <div class="log-area" id="logArea"></div>
+            <div id="nodeInfo">
+                <span class="stat">Peer: <b id="myPeerId">—</b></span>
+                <span class="stat">Peers: <b id="peerCount">0</b></span>
+                <span class="stat">E2E Keys: <b id="e2eKeys">0</b></span>
+                <span class="stat">Model: <b id="loadedModel">none</b></span>
             </div>
         </div>
 
-        <div class="panel">
-            <div class="panel-hd">🚫 Eavesdropper Drops (encrypted messages this node CAN'T read)</div>
-            <div class="panel-bd">
-                <div class="log-area" id="dropArea">
-                    <div style="color:#6b7a99;font-size:0.72rem">
-                        If you see entries here, E2E is working — this node received encrypted
-                        messages intended for someone else and CANNOT decrypt them.
-                    </div>
-                </div>
+        <!-- Peers -->
+        <div class="card">
+            <h2>👥 Network Peers</h2>
+            <ul id="peerList" class="peer-list">
+                <li style="color:var(--dim);">Start a node to discover peers…</li>
+            </ul>
+        </div>
+
+        <!-- Model Loading -->
+        <div class="card full-width">
+            <h2>🧠 Model Engine (In-Browser WebGPU)</h2>
+            <div class="controls">
+                <select id="modelSelect" style="max-width:350px;">
+                    <option value="SmolLM2-360M-Instruct-q4f16_1-MLC">SmolLM2 360M (130MB) — Ultra fast</option>
+                    <option value="TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC">TinyLlama 1.1B (900MB) — Testnet Primary
+                    </option>
+                    <option value="Gemma-2-2B-it-q4f16_1-MLC">Gemma 2 2B (2GB) — Higher quality</option>
+                </select>
+                <button id="btnLoad" class="btn btn-gold" onclick="loadModel()" disabled>📥 Load Model</button>
+                <span id="modelStatus" style="font-size:0.8rem; color:var(--dim);">Start node first</span>
             </div>
+            <div class="progress-wrap" id="progressWrap" style="display:none;">
+                <div class="progress-bar" id="progressBar"></div>
+                <span class="progress-text" id="progressText">0%</span>
+            </div>
+            <p style="font-size:0.72rem; color:var(--dim); margin-top:6px;">
+                Models run <b>entirely in your browser</b> via WebGPU. Downloaded once, cached in IndexedDB.
+                No server, no API calls. Your GPU = the compute node.
+            </p>
+        </div>
+
+        <!-- Inference -->
+        <div class="card full-width">
+            <h2>💬 Distributed Inference (E2E Encrypted)</h2>
+            <div class="controls">
+                <textarea id="promptInput"
+                    placeholder="Enter your prompt… (will be E2E encrypted to the executing node)" rows="2"
+                    style="flex:1;"></textarea>
+                <button id="btnInfer" class="btn btn-primary" onclick="runInference()" disabled>🔒 Send
+                    Encrypted</button>
+            </div>
+            <div id="inferenceOutput" class="inference-output mt" style="display:none;"></div>
+            <div class="stats-row" id="inferenceStats" style="display:none;"></div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="card">
+            <h2>📋 Event Log</h2>
+            <div id="eventLog" class="log"></div>
+        </div>
+
+        <!-- Eavesdropper Drops -->
+        <div class="card">
+            <h2>🚫 Eavesdropper Drops</h2>
+            <div id="dropCount" style="font-size:2rem; font-weight:700; color:var(--red);">0</div>
+            <p style="font-size:0.72rem; color:var(--dim); margin-top:4px;">
+                Messages this node saw but <b>could NOT decrypt</b> (E2E proof).
+            </p>
+            <div id="dropLog" class="log mt" style="max-height:120px;"></div>
         </div>
     </div>
 
     <script type="module">
         import { TabMesh } from './browser/p2p/TabMesh.js';
+        import { BrowserInferenceEngine, SUPPORTED_MODELS } from './browser/llm/BrowserInferenceEngine.js';
 
+        // ── Globals ──
         let mesh = null;
-        let startTime = null;
-        let infCount = 0;
-        let dropCount = 0;
-        const pendingInferences = new Map();
+        let engine = null;
+        let dropCounter = 0;
+        const startTs = Date.now();
 
-        function genPeerId() {
-            const arr = new Uint8Array(16);
-            crypto.getRandomValues(arr);
-            return 'CDI-' + Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 24);
-        }
+        // ── Helpers ──
 
-        function log(msg, level = 'i') {
-            const a = document.getElementById('logArea');
-            const t = new Date().toLocaleTimeString();
-            a.innerHTML += `<div class="fade-in"><span class="t">[${t}]</span> <span class="${level}">${msg}</span></div>`;
-            a.scrollTop = a.scrollHeight;
+        function log(msg, cls = '') {
+            const el = document.getElementById('eventLog');
+            const ts = ((Date.now() - startTs) / 1000).toFixed(1);
+            el.innerHTML += `<div><span class="ts">[${ts}s]</span> <span class="${cls}">${msg}</span></div>`;
+            el.scrollTop = el.scrollHeight;
         }
 
         function logDrop(msg) {
-            const a = document.getElementById('dropArea');
-            const t = new Date().toLocaleTimeString();
-            a.innerHTML += `<div class="fade-in"><span class="t">[${t}]</span> <span class="e">${msg}</span></div>`;
-            a.scrollTop = a.scrollHeight;
+            const el = document.getElementById('dropLog');
+            const ts = ((Date.now() - startTs) / 1000).toFixed(1);
+            el.innerHTML += `<div><span class="ts">[${ts}s]</span> <span class="err">${msg}</span></div>`;
+            el.scrollTop = el.scrollHeight;
         }
 
-        function updatePeerUI() {
-            const peers = mesh ? mesh.getPeers() : [];
-            document.getElementById('peerCount').textContent = peers.length;
-            document.getElementById('e2eCount').textContent = mesh ? mesh.e2e.peerCount : 0;
+        function genPeerId() {
+            const arr = new Uint8Array(12);
+            crypto.getRandomValues(arr);
+            return 'CDI-' + [...arr].map(b => b.toString(16).padStart(2, '0')).join('');
+        }
 
+        function updatePeerList() {
             const el = document.getElementById('peerList');
-            if (peers.length === 0) {
-                el.innerHTML = '<div style="color:#6b7a99;font-size:0.78rem">No peers yet — open more tabs!</div>';
+            if (!mesh || mesh.peers.size === 0) {
+                el.innerHTML = '<li style="color:var(--dim);">No peers yet…</li>';
                 return;
             }
-            el.innerHTML = peers.map(p => {
-                const hasE2E = mesh.e2e.hasPeer(p.peerId);
-                return `
-                    <div class="peer-row fade-in">
-                        <div class="peer-dot"></div>
-                        <span class="peer-id">${p.peerId.slice(0, 20)}…</span>
-                        <span class="e2e-badge ${hasE2E ? 'locked' : 'open'}">${hasE2E ? '🔒 E2E' : '🔓 OPEN'}</span>
-                        <span class="peer-meta">
-                            GPU: ${p.gpu ? '✅' : '❌'} |
-                            Up: ${p.uptime || 0}s |
-                            Inf: ${p.inferences || 0}
-                        </span>
-                    </div>
-                `;
-            }).join('');
+            el.innerHTML = '';
+            for (const [id, p] of mesh.peers) {
+                const e2eBadge = mesh.e2e.hasPeer(id)
+                    ? '<span class="peer-badge peer-badge-e2e">🔒 E2E</span>'
+                    : '<span class="peer-badge" style="background:rgba(239,68,68,0.2);color:var(--red);">🔓 OPEN</span>';
+                const modelBadges = (p.models || []).map(m =>
+                    `<span class="peer-badge peer-badge-model">🧠 ${m.split('-')[0]}</span>`
+                ).join(' ');
+                el.innerHTML += `<li>${id.slice(0, 16)}… ${e2eBadge} ${modelBadges}</li>`;
+            }
+            document.getElementById('peerCount').textContent = mesh.peers.size;
+            document.getElementById('e2eKeys').textContent = mesh.e2e.peerCount;
         }
 
-        window.startMesh = async function() {
-            const peerId = genPeerId();
-            document.getElementById('nodeId').textContent = peerId.slice(0, 16) + '…';
+        // ── Check WebGPU ──
+        async function checkGPU() {
+            const badge = document.getElementById('gpuBadge');
+            if (typeof navigator === 'undefined' || !navigator.gpu) {
+                badge.className = 'badge badge-no-webgpu';
+                badge.textContent = '🔴 No WebGPU';
+                return false;
+            }
+            try {
+                const adapter = await navigator.gpu.requestAdapter();
+                if (adapter) {
+                    badge.className = 'badge badge-webgpu';
+                    badge.textContent = '🟢 WebGPU';
+                    return true;
+                }
+            } catch {}
+            badge.className = 'badge badge-no-webgpu';
+            badge.textContent = '🔴 No WebGPU';
+            return false;
+        }
+        checkGPU();
+
+        // ── Start Node ──
+        window.startNode = async function() {
             document.getElementById('btnStart').disabled = true;
-            document.getElementById('btnStop').disabled = false;
-            document.getElementById('btnInfer').disabled = false;
-            startTime = Date.now();
+            document.getElementById('nodeStatus').textContent = 'Starting…';
+
+            const peerId = genPeerId();
+            document.getElementById('myPeerId').textContent = peerId.slice(0, 16) + '…';
 
             mesh = new TabMesh({
                 peerId,
                 ethAddress: '0x' + peerId.slice(4, 44),
-                onPeer: (peer) => {
-                    log(`✅ PEER: ${peer.peerId.slice(0, 16)}… (E2E: ${peer.e2e ? '🔒' : '🔓'}) — Total: ${peer.total}`, 's');
-                    updatePeerUI();
+                onPeer: (info) => {
+                    log(`Peer discovered: ${info.peerId.slice(0, 16)}… (E2E: ${info.e2e ? '🔒' : '🔓'})`, 'e2e');
+                    updatePeerList();
                 },
-                onPeerLost: (peer) => {
-                    log(`❌ PEER LOST: ${peer.peerId.slice(0, 16)}… — Total: ${peer.total}`, 'w');
-                    updatePeerUI();
+                onPeerLost: (info) => {
+                    log(`Peer lost: ${info.peerId.slice(0, 16)}…`, 'err');
+                    updatePeerList();
                 },
-                onMessage: (msg) => {
-                    // Handle inference response (decrypted or unencrypted)
-                    if (msg.type === 'inference:res') {
-                        const cb = pendingInferences.get(msg.id);
-                        if (cb) {
-                            cb(msg);
-                            pendingInferences.delete(msg.id);
-                        }
-                    } else {
-                        log(`📨 Message: ${msg.type} from ${msg.from?.slice(0, 12)}…`);
+                onInferenceReq: async ({ id, prompt, model, fromPeerId }) => {
+                    log(`📨 Inference request received: "${prompt.slice(0, 40)}…"`, 'e2e');
+
+                    if (!engine || !engine.isReady) {
+                        log(`⚠️ No model loaded — cannot serve inference`, 'err');
+                        await mesh.respondInference(id, '[ERROR] No model loaded on this node', fromPeerId);
+                        return;
+                    }
+
+                    log(`🧠 Running in-browser inference (${engine.loadedModel})…`, 'model');
+                    try {
+                        const result = await engine.generate(prompt, { maxTokens: 128, temperature: 0.7 });
+                        log(`✅ Generated ${result.tokensGenerated} tokens @ ${result.tokensPerSecond} tok/s`, 'ok');
+                        await mesh.respondInference(id, result.text, fromPeerId);
+                    } catch (err) {
+                        log(`❌ Inference failed: ${err.message}`, 'err');
+                        await mesh.respondInference(id, `[ERROR] ${err.message}`, fromPeerId);
                     }
                 },
-                onInferenceReq: (req) => {
-                    const decLabel = req.decrypted ? '🔒 DECRYPTED' : '🔓 PLAINTEXT';
-                    log(`🤖 Inference [${decLabel}] from ${req.from?.slice(0, 12)}…: "${req.prompt?.slice(0, 50)}…"`, 'c');
-
-                    // Simulate local inference
-                    const fakeResult = `[${peerId.slice(0, 8)}] I can see the prompt: "${req.prompt?.slice(0, 40)}…" — Simulated response (${Math.floor(Math.random() * 500 + 100)}ms)`;
-                    infCount++;
-                    document.getElementById('infCount').textContent = infCount;
-
-                    setTimeout(async () => {
-                        // Respond with E2E encryption back to requester
-                        await mesh.respondInference(req.id, fakeResult, req.from);
-                        log(`✅ Response sent [🔒 encrypted for ${req.from?.slice(0, 12)}…]`, 's');
-                    }, Math.random() * 800 + 200);
+                onEncryptedDrop: (info) => {
+                    dropCounter++;
+                    document.getElementById('dropCount').textContent = dropCounter;
+                    logDrop(`🚫 ${info.reason}: msg ${info.id} from ${info.from?.slice(0, 12)}… → ${info.targetPeerId?.slice(0, 12)}…`);
                 },
-                onEncryptedDrop: (drop) => {
-                    dropCount++;
-                    document.getElementById('dropCount').textContent = dropCount;
-                    logDrop(`🚫 ENCRYPTED msg [${drop.reason}] — from: ${drop.from?.slice(0, 12)}… → target: ${drop.targetPeerId?.slice(0, 12) || '?'}…`);
-                    if (drop.ciphertextPreview) {
-                        logDrop(`   ciphertext: ${drop.ciphertextPreview}`);
-                    }
-                    logDrop(`   ⚠️ This node CANNOT read the prompt — E2E encryption working!`);
-                },
+                onMessage: () => {},
             });
-
-            // Wire metrics
-            mesh._getUptime = () => Math.floor((Date.now() - startTime) / 1000);
-            mesh._getInferences = () => infCount;
-            mesh._getEarnings = () => infCount * 1.5;
 
             await mesh.start();
-            log(`🚀 Node started: ${peerId}`, 's');
-            log('🔐 ECDH P-256 keypair generated — E2E encryption ready', 'c');
-            log('Waiting for peers… Open this page in more browser tabs!');
 
-            // Uptime counter
-            setInterval(() => {
-                updatePeerUI();
-            }, 1000);
+            document.getElementById('nodeStatus').textContent = '🟢 Running';
+            document.getElementById('btnLoad').disabled = false;
+            document.getElementById('modelStatus').textContent = 'Select and load a model';
+            log('🚀 Node started — E2E keypair generated', 'ok');
+            updatePeerList();
         };
 
-        window.stopMesh = function() {
-            if (mesh) {
-                mesh.stop();
-                mesh = null;
-            }
-            startTime = null;
-            document.getElementById('btnStart').disabled = false;
-            document.getElementById('btnStop').disabled = true;
-            document.getElementById('btnInfer').disabled = true;
-            document.getElementById('peerCount').textContent = '0';
-            document.getElementById('e2eCount').textContent = '0';
-            document.getElementById('nodeId').textContent = '—';
-            log('⏹ Node stopped', 'w');
-        };
+        // ── Load Model ──
+        window.loadModel = async function() {
+            if (!mesh) return;
 
-        window.sendInference = async function() {
-            if (!mesh || mesh.getPeerCount() === 0) {
-                log('⚠️ No peers connected — open more tabs first!', 'w');
+            const hasGPU = await checkGPU();
+            if (!hasGPU) {
+                log('❌ WebGPU not available — cannot load model. Use Chrome/Edge.', 'err');
+                document.getElementById('modelStatus').textContent = '🔴 WebGPU required';
                 return;
             }
-            const prompt = document.getElementById('inferPrompt').value.trim();
-            if (!prompt) return;
 
-            const id = 'inf-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-            document.getElementById('inferResult').innerHTML = '<span style="color:#ffd54f">⏳ Encrypting + distributing to peers…</span>';
-            log(`📤 Sending encrypted inference: "${prompt.slice(0, 40)}…"`, 'c');
+            const modelId = document.getElementById('modelSelect').value;
+            const modelInfo = SUPPORTED_MODELS.find(m => m.id === modelId);
 
-            // Wait for response
-            const timeout = setTimeout(() => {
-                pendingInferences.delete(id);
-                document.getElementById('inferResult').innerHTML = '<span style="color:#ff5252">⏰ Timeout — no peer responded in 10s</span>';
-                log('⏰ Inference timeout', 'w');
-            }, 10000);
+            document.getElementById('btnLoad').disabled = true;
+            document.getElementById('modelStatus').textContent = `Loading ${modelInfo.name}…`;
+            document.getElementById('progressWrap').style.display = 'block';
 
-            pendingInferences.set(id, (msg) => {
-                clearTimeout(timeout);
-                infCount++;
-                document.getElementById('infCount').textContent = infCount;
-                const decLabel = msg.decrypted ? '🔒 E2E Decrypted' : '🔓 Plaintext';
-                document.getElementById('inferResult').innerHTML = `
-                    <div style="color:#00e676;font-weight:600;margin-bottom:4px">✅ Response from ${msg.peerId?.slice(0, 16)}… [${decLabel}]</div>
-                    <div style="color:#e0e6f0;font-size:0.82rem">${msg.output}</div>
-                `;
-                log(`✅ Response received [${decLabel}] from ${msg.peerId?.slice(0, 12)}…`, 's');
+            log(`📥 Loading ${modelInfo.name} (${modelInfo.params}, ~${modelInfo.vram}MB VRAM)…`, 'model');
+
+            engine = new BrowserInferenceEngine({
+                onStatusChange: (status, detail) => {
+                    document.getElementById('modelStatus').textContent = detail || status;
+                },
+                onProgress: (pct) => {
+                    document.getElementById('progressBar').style.width = pct + '%';
+                    document.getElementById('progressText').textContent = pct + '%';
+                },
             });
 
-            // Send encrypted inference (target = first available peer)
-            await mesh.requestInference(id, prompt, 'llama3.1:8b');
+            try {
+                await engine.init(modelId);
+
+                // Announce model to network
+                mesh.loadedModels = [modelId];
+                mesh._announce();
+
+                document.getElementById('loadedModel').textContent = modelInfo.name;
+                document.getElementById('btnInfer').disabled = false;
+                document.getElementById('progressWrap').style.display = 'none';
+                log(`✅ ${modelInfo.name} loaded — ready for inference`, 'ok');
+                updatePeerList();
+            } catch (err) {
+                log(`❌ Model load failed: ${err.message}`, 'err');
+                document.getElementById('modelStatus').textContent = '🔴 Load failed';
+                document.getElementById('btnLoad').disabled = false;
+            }
+        };
+
+        // ── Run Inference ──
+        window.runInference = async function() {
+            const prompt = document.getElementById('promptInput').value.trim();
+            if (!prompt) return;
+
+            const outputEl = document.getElementById('inferenceOutput');
+            const statsEl = document.getElementById('inferenceStats');
+            outputEl.style.display = 'block';
+            outputEl.innerHTML = '<span class="cursor"></span>';
+            statsEl.style.display = 'none';
+
+            document.getElementById('btnInfer').disabled = true;
+
+            // Check: do we have peers? If yes, send via encrypted mesh.
+            // If no peers (or self-inference), run locally.
+            const hasPeers = mesh && mesh.peers.size > 0;
+
+            if (hasPeers) {
+                // ── Distributed: send encrypted to peer ──
+                const infId = 'inf-' + Date.now();
+                const model = engine?.loadedModel || 'SmolLM2-360M-Instruct-q4f16_1-MLC';
+                log(`🔒 Sending encrypted inference to mesh (model: ${model.split('-')[0]})…`, 'e2e');
+
+                // Listen for the response
+                const origHandler = mesh.onMessage;
+                const responsePromise = new Promise((resolve) => {
+                    mesh.onMessage = (data) => {
+                        if (data.type === 'inference:res' && data.id === infId) {
+                            resolve(data);
+                        }
+                        origHandler(data);
+                    };
+                    // Timeout after 120s
+                    setTimeout(() => resolve(null), 120000);
+                });
+
+                await mesh.requestInference(infId, prompt, model);
+
+                outputEl.innerHTML = '⏳ Waiting for encrypted response from peer…<span class="cursor"></span>';
+
+                const response = await responsePromise;
+                mesh.onMessage = origHandler;
+
+                if (response) {
+                    const text = response.decryptedText || response.output || '[No response]';
+                    outputEl.innerHTML = `<span style="color:var(--accent);">[🔒 E2E Decrypted]</span>\n\n${text}`;
+                    statsEl.style.display = 'flex';
+                    statsEl.innerHTML = `
+                        <span class="stat-pill">📡 <b>Mesh relay</b></span>
+                        <span class="stat-pill">🔒 <b>E2E Encrypted</b></span>
+                        <span class="stat-pill">From: <b>${response.peerId?.slice(0, 12) || '?'}…</b></span>
+                    `;
+                    log(`✅ Received encrypted response from ${response.peerId?.slice(0, 12)}…`, 'ok');
+                } else {
+                    outputEl.innerHTML = '<span style="color:var(--red);">⏱️ Timeout — no peer responded in 120s</span>';
+                    log('❌ Inference timeout', 'err');
+                }
+            } else {
+                // ── Local: run on this node ──
+                if (!engine || !engine.isReady) {
+                    outputEl.innerHTML = '<span style="color:var(--red);">Load a model first!</span>';
+                    document.getElementById('btnInfer').disabled = false;
+                    return;
+                }
+
+                log(`🧠 Running local in-browser inference…`, 'model');
+                try {
+                    let tokens = '';
+                    const result = await engine.generate(prompt, {
+                        maxTokens: 256,
+                        temperature: 0.7,
+                        onToken: (token) => {
+                            tokens += token;
+                            outputEl.innerHTML = tokens + '<span class="cursor"></span>';
+                        },
+                    });
+
+                    outputEl.innerHTML = result.text;
+                    statsEl.style.display = 'flex';
+                    statsEl.innerHTML = `
+                        <span class="stat-pill">Tokens: <b>${result.tokensGenerated}</b></span>
+                        <span class="stat-pill">Speed: <b>${result.tokensPerSecond} tok/s</b></span>
+                        <span class="stat-pill">Latency: <b>${result.latencyMs}ms</b></span>
+                        <span class="stat-pill">Model: <b>${result.model?.split('-')[0]}</b></span>
+                        <span class="stat-pill">🧠 <b>In-Browser (WebGPU)</b></span>
+                    `;
+                    log(`✅ Local: ${result.tokensGenerated} tokens @ ${result.tokensPerSecond} tok/s, ${result.latencyMs}ms`, 'ok');
+                } catch (err) {
+                    outputEl.innerHTML = `<span style="color:var(--red);">❌ ${err.message}</span>`;
+                    log(`❌ Inference failed: ${err.message}`, 'err');
+                }
+            }
+
+            document.getElementById('btnInfer').disabled = false;
         };
     </script>
 </body>
