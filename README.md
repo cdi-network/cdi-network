@@ -6,83 +6,73 @@
 
 <h3 align="center">Collaborative Distributed Inference</h3>
 <p align="center">
-  Run AI. Earn Crypto. — The first decentralized AI inference network.
+  The first <strong>100% browser-native</strong> decentralized AI inference network.<br>
+  No downloads. No servers. Just open a tab and start earning.
 </p>
 
 <p align="center">
-  <a href="docs/WHITEPAPER.md">Whitepaper</a> ·
-  <a href="docs/index.html">Website</a> ·
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#tokenomics">Tokenomics</a>
+  <a href="https://cdi-network.github.io/cdi-network">🌐 Launch App</a> ·
+  <a href="docs/WHITEPAPER.md">📄 Whitepaper</a> ·
+  <a href="#how-it-works">⚡ How It Works</a> ·
+  <a href="#tokenomics">💰 Tokenomics</a>
 </p>
 
 ---
 
 ## What is CDI?
 
-CDI Network is a **peer-to-peer AI inference protocol** where:
+CDI Network is a **peer-to-peer AI inference protocol** that runs entirely in your browser:
 
-- 🖥️ **GPU owners** run nodes and earn **CDI tokens** (85% of inference fees)
-- 🧠 **Model creators** earn **9% royalties** on every inference, forever
-- 🔐 Every inference is **ZK-verified** — no trust required
-- 💰 **21M max supply**, Bitcoin-style halving based on network usage
+- 🌐 **Open a tab** → your browser becomes part of the network (WebGPU + libp2p + OrbitDB)
+- 🧠 **Run AI models** → inference runs on your GPU via WebGPU compute shaders
+- 💰 **Earn CDI tokens** → 85% of inference fees go directly to you
+- 🔐 **ZK-verified** → every inference is cryptographically proven, no trust required
+- 📦 **40+ models** → LLaMA, Mistral, Qwen, DeepSeek, Gemma, Phi, and more
 
-## Quick Start
+**No Node.js. No Docker. No CLI. Just a browser.**
 
-```bash
-# Install
-npm install -g cdi-network
+## How It Works
 
-# Start a node (wallet auto-generated on first run)
-cdi start
-
-# Output:
-# 🔑 Wallet loaded: a4f2c8d1...
-# 🚀 CDI Node started
-#    API:     http://localhost:3000
-#    Models:  llama3.1:8b
+```
+┌─────────────────────────────────────────────────┐
+│              Your Browser Tab                    │
+│                                                  │
+│  ┌──────────┐  ┌────────────┐  ┌──────────────┐ │
+│  │  WebGPU  │  │   libp2p   │  │   OrbitDB    │ │
+│  │ Compute  │  │  WebRTC P2P│  │  IPFS/Helia  │ │
+│  └──────────┘  └────────────┘  └──────────────┘ │
+│  ┌──────────┐  ┌────────────┐  ┌──────────────┐ │
+│  │  Model   │  │ Reputation │  │    CDI       │ │
+│  │ Catalog  │  │   System   │  │   Wallet     │ │
+│  └──────────┘  └────────────┘  └──────────────┘ │
+│  ┌──────────┐  ┌────────────┐  ┌──────────────┐ │
+│  │  Shard   │  │    ZKP     │  │   Token      │ │
+│  │ Executor │  │  Verifier  │  │   Bridge     │ │
+│  └──────────┘  └────────────┘  └──────────────┘ │
+└─────────────────────────────────────────────────┘
+         ↕ WebRTC          ↕ GossipSub
+    ┌────────────────────────────────┐
+    │    Other Browser Nodes (P2P)   │
+    └────────────────────────────────┘
 ```
 
-Your node auto-connects to the swarm, serves inference, and earns CDI.
+### Three Steps
 
-### Prerequisites
+| Step | Action | What Happens |
+|------|--------|-------------|
+| **1** | Visit [cdi-network.github.io/cdi-network](https://cdi-network.github.io/cdi-network) | App loads in your browser |
+| **2** | Click "Join Network" | WebRTC connects you to peers, wallet auto-generated |
+| **3** | Start earning | Your GPU serves inference via WebGPU, CDI flows to your wallet |
 
-- **Node.js** ≥ 18
-- **Ollama** — [Install Ollama](https://ollama.com/download)
-- A model pulled: `ollama pull llama3.1:8b`
+## Technology Stack
 
-### From Source
-
-```bash
-git clone https://github.com/your-org/cdi-network.git
-cd cdi-network
-npm install
-npm run build
-node dist/cli.js start
-```
-
-## API
-
-Once running, your node exposes a REST API:
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | Node status + uptime |
-| `GET` | `/balance` | CDI balance |
-| `GET` | `/models` | Available models |
-| `POST` | `/infer` | Submit inference (`{ "prompt": "..." }`) |
-| `GET` | `/result/:id` | Get result |
-| `GET` | `/stats` | Full node stats |
-
-```bash
-# Submit inference
-curl -X POST http://localhost:3000/infer \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "Explain quantum computing"}'
-
-# Check balance
-curl http://localhost:3000/balance
-```
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Compute** | WebGPU + WGSL shaders | GPU-accelerated inference (matmul, layernorm, gelu, softmax) |
+| **Networking** | libp2p + WebRTC + Circuit Relay | Browser-to-browser P2P, NAT traversal |
+| **Storage** | Helia (IPFS) + OrbitDB | Decentralized model shards + state |
+| **Security** | ZKP commitments + PoW Sybil guard | Trustless verification |
+| **Crypto** | CDI token + Ed25519 wallets | Incentive layer |
 
 ## Tokenomics
 
@@ -93,88 +83,55 @@ curl http://localhost:3000/balance
 | **Halving** | Dynamic (IPS-based) |
 | **Fee Split** | 85% providers / 9% uploaders / 6% improvers |
 | **Min Reward** | 10⁻⁸ CDI |
+| **Token Bridge** | CDI ↔ ERC-20 (L2) |
 
 See [Whitepaper](docs/WHITEPAPER.md) for full details.
 
-## Multi-Node (Docker)
+## Model Catalog
 
-```bash
-# Launch 3-node testnet with shared Ollama
-docker compose up -d
+40+ open-weight models available at genesis across 15+ families:
 
-# Node APIs:
-#   http://localhost:3001 (bootstrap)
-#   http://localhost:3002 (node-2)
-#   http://localhost:3003 (node-3)
-```
+| Category | Models |
+|----------|--------|
+| **Chat** | LLaMA 3.1 (8B/70B), Mistral 7B, Qwen 2.5, Gemma 2 |
+| **Code** | StarCoder2 15B, DeepSeek Coder V2, Qwen2.5-Coder |
+| **Reasoning** | DeepSeek R1, Phi-4, Qwen QwQ |
+| **Vision** | LLaVA 1.6, InternVL2 |
+| **Audio** | Whisper Large V3 |
+| **Medical** | Meditron 70B |
+| **Math** | DeepSeek Math, Qwen2.5-Math |
+| **Embeddings** | Nomic Embed, BGE Large |
 
-## Architecture
+## Security
 
-```
-┌─────────────────────────────────────────────┐
-│                 SwarmNode                    │
-│  ┌──────────┐  ┌────────────┐  ┌─────────┐ │
-│  │LocalWallet│  │ModelRegistry│  │  Ollama │ │
-│  │ Ed25519   │  │  OrbitDB   │  │  GPU/CPU│ │
-│  └──────────┘  └────────────┘  └─────────┘ │
-│  ┌──────────┐  ┌────────────┐  ┌─────────┐ │
-│  │ModelRouter│  │Contribution│  │  Token  │ │
-│  │ Load-aware│  │  Tracker   │  │  Ledger │ │
-│  └──────────┘  └────────────┘  └─────────┘ │
-│  ┌──────────┐  ┌────────────┐  ┌─────────┐ │
-│  │AutoBalance│  │ ZK Prover  │  │ API     │ │
-│  │ r         │  │  Circom    │  │ Server  │ │
-│  └──────────┘  └────────────┘  └─────────┘ │
-│          ┌────────────────┐                 │
-│          │  OrbitDB / P2P │                 │
-│          │ libp2p + IPFS  │                 │
-│          └────────────────┘                 │
-└─────────────────────────────────────────────┘
-```
-
-## Genesis Model Seeder
-
-At launch, the founder registers 40+ open-weight models:
-
-```bash
-npx ts-node src/scripts/seed-models.ts
-
-# Seeds: Llama 3.x, DeepSeek R1/V3, Qwen 2.5, Mistral,
-#         Gemma 3, Phi 4, StarCoder2, embedding models...
-```
-
-The genesis uploader earns 9% royalties on every inference, forever.
-
-## CLI Commands
-
-```bash
-cdi start [--config config.json]   # Start node + API
-cdi submit "prompt" [--model m]    # Submit inference
-cdi wallet                         # Show wallet info
-cdi seed                           # Seed genesis models
-```
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OLLAMA_HOST` | `127.0.0.1` | Ollama server host |
-| `OLLAMA_PORT` | `11434` | Ollama server port |
-| `ORBITDB_DIR` | `./orbitdb` | OrbitDB data directory |
-| `WALLET_DIR` | `~/.cdi` | Wallet storage path |
-| `API_PORT` | `3000` | REST API port |
-| `LISTEN_PORT` | `0` (random) | P2P listen port |
-| `BOOTSTRAP_PEERS` | (none) | Comma-separated multiaddrs |
-| `MODELS` | `tinyllama` | Comma-separated model names |
-| `LOG_LEVEL` | `info` | debug/info/warn/error |
+- **RateLimiter** — Token-bucket per-peer, per-category (inference/gossip/relay)
+- **ReputationSystem** — Tiered access (trusted → banned), epoch decay
+- **SybilGuard** — PoW challenges + IP rate-limit + CDI stake
+- **ProofAggregator** — ZKP pipeline commitment chain verification
 
 ## Development
 
 ```bash
-npm install          # Install all dependencies
-npm test             # Run 206 tests
-npm run build        # Compile TypeScript
+git clone https://github.com/cdi-network/cdi-network.git
+cd cdi-network
+npm install
+npm test             # 161 tests across 31 suites
 ```
+
+### Test Suites
+
+| Suite | Tests | Coverage |
+|-------|-------|----------|
+| P2P (libp2p, WebRTC, Relay) | 20 | ✅ |
+| Storage (Helia, Ledger) | 14 | ✅ |
+| Compute (WebGPU, Shaders) | 14 | ✅ |
+| E2E Pipeline | 8 | ✅ |
+| Sharding + Governance | 38 | ✅ |
+| Testnet | 15 | ✅ |
+| Model Catalog | 16 | ✅ |
+| Security | 23 | ✅ |
+| Mainnet | 13 | ✅ |
+| **Total** | **161** | **✅** |
 
 ## License
 
@@ -183,6 +140,6 @@ MIT
 ---
 
 <p align="center">
-  <b>CDI Network</b> — Run AI. Earn Crypto.<br>
-  <sub>Open source. Fair launch. No VC. No presale.</sub>
+  <b>CDI Network</b> — AI inference, powered by your browser.<br>
+  <sub>Open source. Fair launch. No VC. No presale. No downloads.</sub>
 </p>

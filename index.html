@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CDI Network — Collaborative Distributed Inference</title>
+    <meta name="description"
+        content="100% browser-native decentralized AI inference network. Open this page to become a node. WebGPU + libp2p + OrbitDB.">
+    <link rel="icon" type="image/png" href="docs/assets/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --bg2: #101018;
+            --bg-card: rgba(20, 20, 35, 0.85);
+            --border: rgba(255, 255, 255, 0.06);
+            --border2: rgba(255, 255, 255, 0.1);
+            --cyan: #00D4FF;
+            --gold: #F7931A;
+            --green: #00E676;
+            --purple: #7B2FBE;
+            --red: #FF5252;
+            --text: #E8E8F0;
+            --text2: #9090A8;
+            --text3: #555568;
+            --gradient: linear-gradient(135deg, var(--cyan), var(--purple));
+            --gradient-gold: linear-gradient(135deg, var(--gold), var(--cyan));
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            overflow-x: hidden
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            font-family: 'Space Grotesk', sans-serif
+        }
+
+        .bg-anim {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 50%, rgba(0, 212, 255, 0.05) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(123, 47, 190, 0.05) 0%, transparent 50%);
+            z-index: -1
+        }
+
+        /* ── Top Nav ── */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 10px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(20px);
+            background: rgba(10, 10, 15, 0.9);
+            border-bottom: 1px solid var(--border);
+            z-index: 100
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            cursor: pointer
+        }
+
+        .nav-brand img {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px
+        }
+
+        .nav-brand span {
+            font-family: 'Space Grotesk';
+            font-size: 1.05rem;
+            font-weight: 600;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent
+        }
+
+        .nav-right {
+            display: flex;
+            gap: 16px;
+            align-items: center
+        }
+
+        .nav-right a {
+            color: var(--text2);
+            text-decoration: none;
+            font-size: 0.8rem;
+            transition: color 0.3s
+        }
+
+        .nav-right a:hover {
+            color: var(--cyan)
+        }
+
+        .nav-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 0.7rem;
+            font-weight: 600
+        }
+
+        .nav-badge.off {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text3)
+        }
+
+        .nav-badge.on {
+            background: rgba(0, 230, 118, 0.1);
+            border: 1px solid rgba(0, 230, 118, 0.3);
+            color: var(--green)
+        }
+
+        .nav-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%
+        }
+
+        .nav-badge.off .dot {
+            background: var(--text3)
+        }
+
+        .nav-badge.on .dot {
+            background: var(--green);
+            animation: pulse 2s infinite
+        }
+
+        /* ── Hero ── */
+        #hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 80px 20px 40px
+        }
+
+        .hero-inner {
+            max-width: 700px
+        }
+
+        .h-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 16px;
+            font-size: 0.75rem;
+            color: var(--cyan);
+            margin-bottom: 16px
+        }
+
+        #hero h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 16px
+        }
+
+        #hero h1 .g {
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent
+        }
+
+        #hero p {
+            font-size: 1rem;
+            color: var(--text2);
+            max-width: 520px;
+            margin: 0 auto 28px
+        }
+
+        .h-stats {
+            display: flex;
+            gap: 32px;
+            justify-content: center;
+            margin-top: 40px;
+            flex-wrap: wrap
+        }
+
+        .h-stat-v {
+            font-family: 'Space Grotesk';
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent
+        }
+
+        .h-stat-l {
+            font-size: 0.72rem;
+            color: var(--text3);
+            margin-top: 2px
+        }
+
+        .btn-join {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 32px;
+            border-radius: 10px;
+            background: var(--gradient-gold);
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 20px rgba(0, 180, 216, 0.2)
+        }
+
+        .btn-join:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 180, 216, 0.35)
+        }
+
+        .btn-join:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none
+        }
+
+        .btn-sec {
+            background: transparent;
+            color: var(--cyan);
+            padding: 12px 32px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 212, 255, 0.25);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: all 0.3s
+        }
+
+        .btn-sec:hover {
+            background: rgba(0, 212, 255, 0.06);
+            border-color: var(--cyan)
+        }
+
+        /* ── App Shell ── */
+        #app {
+            display: none;
+            padding-top: 48px;
+            min-height: 100vh
+        }
+
+        .app-layout {
+            display: flex;
+            min-height: calc(100vh - 48px)
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 200px;
+            background: var(--bg2);
+            border-right: 1px solid var(--border);
+            padding: 16px 0;
+            flex-shrink: 0;
+            position: sticky;
+            top: 48px;
+            height: calc(100vh - 48px);
+            overflow-y: auto
+        }
+
+        .sb-section {
+            padding: 0 12px;
+            margin-bottom: 16px
+        }
+
+        .sb-label {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text3);
+            padding: 0 8px;
+            margin-bottom: 6px
+        }
+
+        .sb-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.82rem;
+            color: var(--text2);
+            transition: all 0.2s;
+            user-select: none
+        }
+
+        .sb-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text)
+        }
+
+        .sb-item.active {
+            background: rgba(0, 212, 255, 0.08);
+            color: var(--cyan);
+            font-weight: 500
+        }
+
+        .sb-icon {
+            font-size: 1rem;
+            width: 20px;
+            text-align: center
+        }
+
+        /* Main Content */
+        .content {
+            flex: 1;
+            padding: 24px;
+            max-width: 1000px;
+            overflow-y: auto
+        }
+
+        .page {
+            display: none
+        }
+
+        .page.active {
+            display: block
+        }
+
+        .page-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px
+        }
+
+        /* ── Shared Components ── */
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            transition: border-color 0.3s
+        }
+
+        .card:hover {
+            border-color: rgba(0, 212, 255, 0.15)
+        }
+
+        .card-lbl {
+            font-size: 0.65rem;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px
+        }
+
+        .card-val {
+            font-size: 1.4rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace
+        }
+
+        .card-val.gold {
+            color: var(--gold)
+        }
+
+        .card-val.cyan {
+            color: var(--cyan)
+        }
+
+        .card-val.green {
+            color: var(--green)
+        }
+
+        .card-val.purple {
+            color: #B388FF
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 16px
+        }
+
+        .panel-hd {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.82rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center
+        }
+
+        .panel-bd {
+            padding: 14px 16px
+        }
+
+        .log {
+            font-family: 'JetBrains Mono';
+            font-size: 0.68rem;
+            color: var(--text2);
+            line-height: 1.9;
+            max-height: 240px;
+            overflow-y: auto
+        }
+
+        .log .t {
+            color: var(--text3)
+        }
+
+        .log .i {
+            color: var(--cyan)
+        }
+
+        .log .s {
+            color: var(--green)
+        }
+
+        .log .w {
+            color: var(--gold)
+        }
+
+        .log .e {
+            color: var(--red)
+        }
+
+        .id-row {
+            display: flex;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+            font-size: 0.78rem
+        }
+
+        .id-row:last-child {
+            border-bottom: none
+        }
+
+        .id-lbl {
+            color: var(--text3);
+            width: 65px;
+            flex-shrink: 0;
+            font-size: 0.68rem
+        }
+
+        .id-val {
+            font-family: 'JetBrains Mono';
+            font-size: 0.72rem;
+            word-break: break-all
+        }
+
+        /* Inference */
+        .infer-wrap {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px
+        }
+
+        .infer-input {
+            flex: 1;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: rgba(10, 10, 20, 0.8);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-size: 0.82rem;
+            outline: none
+        }
+
+        .infer-input:focus {
+            border-color: var(--cyan)
+        }
+
+        .btn-run {
+            padding: 10px 20px;
+            border-radius: 8px;
+            background: var(--gradient-gold);
+            color: #fff;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            font-size: 0.82rem
+        }
+
+        .infer-out {
+            background: rgba(10, 10, 20, 0.8);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-family: 'JetBrains Mono';
+            font-size: 0.72rem;
+            color: var(--text2);
+            min-height: 70px;
+            border: 1px solid var(--border);
+            white-space: pre-wrap
+        }
+
+        .model-select {
+            padding: 10px;
+            border-radius: 8px;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-size: 0.82rem;
+            outline: none
+        }
+
+        /* Models Table */
+        .tbl {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78rem
+        }
+
+        .tbl th {
+            text-align: left;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border2);
+            color: var(--text3);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px
+        }
+
+        .tbl td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border)
+        }
+
+        .tbl tr:hover td {
+            background: rgba(255, 255, 255, 0.02)
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.65rem;
+            font-weight: 600
+        }
+
+        .badge-chat {
+            background: rgba(0, 212, 255, 0.12);
+            color: var(--cyan)
+        }
+
+        .badge-code {
+            background: rgba(0, 230, 118, 0.12);
+            color: var(--green)
+        }
+
+        .badge-reason {
+            background: rgba(179, 136, 255, 0.12);
+            color: #B388FF
+        }
+
+        .badge-vision {
+            background: rgba(247, 147, 26, 0.12);
+            color: var(--gold)
+        }
+
+        .badge-audio {
+            background: rgba(255, 82, 82, 0.12);
+            color: var(--red)
+        }
+
+        .badge-embed {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text2)
+        }
+
+        /* Governance */
+        .prop-card {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 10px;
+            transition: border-color 0.3s
+        }
+
+        .prop-card:hover {
+            border-color: rgba(0, 212, 255, 0.15)
+        }
+
+        .prop-title {
+            font-weight: 600;
+            font-size: 0.88rem;
+            margin-bottom: 4px
+        }
+
+        .prop-meta {
+            font-size: 0.68rem;
+            color: var(--text3);
+            margin-bottom: 8px
+        }
+
+        .prop-bar {
+            height: 6px;
+            border-radius: 3px;
+            background: var(--border);
+            overflow: hidden;
+            margin-bottom: 6px
+        }
+
+        .prop-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: var(--gradient)
+        }
+
+        .prop-votes {
+            font-size: 0.68rem;
+            color: var(--text2);
+            display: flex;
+            justify-content: space-between
+        }
+
+        .btn-vote {
+            padding: 4px 14px;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s
+        }
+
+        .btn-vote.yes {
+            background: rgba(0, 230, 118, 0.15);
+            color: var(--green)
+        }
+
+        .btn-vote.no {
+            background: rgba(255, 82, 82, 0.15);
+            color: var(--red)
+        }
+
+        .btn-vote:hover {
+            opacity: 0.8
+        }
+
+        /* Peers */
+        .peer-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.78rem
+        }
+
+        .peer-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            flex-shrink: 0
+        }
+
+        /* Mainnet Progress */
+        .mn-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 0.75rem
+        }
+
+        .mn-lbl {
+            width: 130px;
+            color: var(--text2);
+            flex-shrink: 0
+        }
+
+        .mn-row .prop-bar {
+            flex: 1;
+            margin-bottom: 0
+        }
+
+        .mn-pct {
+            width: 36px;
+            text-align: right;
+            color: var(--cyan);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem
+        }
+
+        .peer-id {
+            font-family: 'JetBrains Mono';
+            font-size: 0.72rem;
+            flex: 1
+        }
+
+        .peer-tag {
+            font-size: 0.65rem;
+            color: var(--text3)
+        }
+
+        /* Wallet */
+        .tx-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.78rem
+        }
+
+        .tx-type {
+            font-family: 'JetBrains Mono';
+            font-size: 0.72rem;
+            color: var(--text2)
+        }
+
+        .tx-amount {
+            font-family: 'JetBrains Mono';
+            font-weight: 600
+        }
+
+        .tx-amount.plus {
+            color: var(--green)
+        }
+
+        .tx-amount.minus {
+            color: var(--red)
+        }
+
+        .btn-faucet {
+            padding: 8px 20px;
+            border-radius: 8px;
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.25);
+            color: var(--cyan);
+            font-weight: 600;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: all 0.2s
+        }
+
+        .btn-faucet:hover {
+            background: rgba(0, 212, 255, 0.18)
+        }
+
+        /* ── Responsive ── */
+        @media(max-width:768px) {
+            .sidebar {
+                width: 60px;
+                padding: 8px 0
+            }
+
+            .sb-label,
+            .sb-item span:not(.sb-icon) {
+                display: none
+            }
+
+            .sb-item {
+                justify-content: center;
+                padding: 10px
+            }
+
+            .content {
+                padding: 16px
+            }
+
+            .cards {
+                grid-template-columns: repeat(2, 1fr)
+            }
+        }
+
+        @media(max-width:480px) {
+            .cards {
+                grid-template-columns: 1fr
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(16px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        .anim {
+            animation: fadeUp 0.4s ease both
+        }
+
+        .anim-d1 {
+            animation-delay: 0.1s
+        }
+
+        .anim-d2 {
+            animation-delay: 0.15s
+        }
+
+        .anim-d3 {
+            animation-delay: 0.2s
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-anim"></div>
+
+    <!-- ── Nav ── -->
+    <nav>
+        <div class="nav-brand" onclick="goHome()">
+            <img src="docs/assets/logo.png" alt="CDI">
+            <span>CDI Network</span>
+        </div>
+        <div class="nav-right">
+            <a href="https://github.com/cdi-network/cdi-network" target="_blank">GitHub</a>
+            <div class="nav-badge off" id="navBadge">
+                <div class="dot"></div>
+                <span id="navBadgeText">Offline</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- ── HERO (shown before join) ── -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section id="hero">
+        <div class="hero-inner">
+            <div class="h-badge anim">⚡ Testnet Live</div>
+            <h1 class="anim anim-d1">AI Inference.<br><span class="g">In Your Browser.</span></h1>
+            <p class="anim anim-d2">This page IS the network. Open it and your browser becomes a CDI node — P2P
+                networking, GPU inference, governance, wallet — all running right here via WebAssembly.</p>
+            <div class="anim anim-d3" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+                <button class="btn-join" id="btnJoin" onclick="joinNetwork()">🌐 Join the Network</button>
+                <a href="docs/WHITEPAPER.md" class="btn-sec">📄 Whitepaper</a>
+            </div>
+            <div class="h-stats anim anim-d3">
+                <div>
+                    <div class="h-stat-v">21M</div>
+                    <div class="h-stat-l">Max Supply</div>
+                </div>
+                <div>
+                    <div class="h-stat-v">40+</div>
+                    <div class="h-stat-l">Models</div>
+                </div>
+                <div>
+                    <div class="h-stat-v">85%</div>
+                    <div class="h-stat-l">To Providers</div>
+                </div>
+                <div>
+                    <div class="h-stat-v">ZK</div>
+                    <div class="h-stat-l">Verified</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- ── APP (shown after join) ── -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="app">
+        <div class="app-layout">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sb-section">
+                    <div class="sb-label">Node</div>
+                    <div class="sb-item active" onclick="showPage('dashboard')"><span
+                            class="sb-icon">📊</span><span>Dashboard</span></div>
+                    <div class="sb-item" onclick="showPage('inference')"><span
+                            class="sb-icon">🤖</span><span>Inference</span></div>
+                    <div class="sb-item" onclick="showPage('log')"><span class="sb-icon">📋</span><span>Log</span></div>
+                </div>
+                <div class="sb-section">
+                    <div class="sb-label">Network</div>
+                    <div class="sb-item" onclick="showPage('models')"><span class="sb-icon">🧠</span><span>Models</span>
+                    </div>
+                    <div class="sb-item" onclick="showPage('peers')"><span class="sb-icon">📡</span><span>Peers</span>
+                    </div>
+                    <div class="sb-item" onclick="showPage('governance')"><span
+                            class="sb-icon">🏛️</span><span>Governance</span></div>
+                </div>
+                <div class="sb-section">
+                    <div class="sb-label">Finance</div>
+                    <div class="sb-item" onclick="showPage('wallet')"><span class="sb-icon">💰</span><span>Wallet</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Content Area -->
+            <main class="content">
+
+                <!-- ── PAGE: Dashboard ── -->
+                <div class="page active" id="pg-dashboard">
+                    <div class="page-title">Dashboard</div>
+                    <div class="cards">
+                        <div class="card">
+                            <div class="card-lbl">CDI Earned</div>
+                            <div class="card-val gold" id="dEarn">0.00</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Peers</div>
+                            <div class="card-val cyan" id="dPeers">0</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Shards</div>
+                            <div class="card-val green" id="dShards">0</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Uptime</div>
+                            <div class="card-val purple" id="dUp">00:00:00</div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-hd">🪪 Node Identity</div>
+                        <div class="panel-bd">
+                            <div class="id-row"><span class="id-lbl">Peer ID</span><span class="id-val"
+                                    id="idPeer">—</span></div>
+                            <div class="id-row"><span class="id-lbl">ETH Addr</span><span class="id-val"
+                                    id="idEth">—</span></div>
+                            <div class="id-row"><span class="id-lbl">Pub Key</span><span class="id-val"
+                                    id="idKey">—</span></div>
+                            <div class="id-row"><span class="id-lbl">Network</span><span class="id-val"
+                                    id="idNet">testnet</span></div>
+                            <div class="id-row"><span class="id-lbl">WebGPU</span><span class="id-val"
+                                    id="idGpu">checking…</span></div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-hd">⚙️ Subsystems</div>
+                        <div class="panel-bd" id="subsystemList" style="font-size:0.78rem;color:var(--text2)">
+                            Initializing…</div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-hd">🚀 Mainnet Readiness</div>
+                        <div class="panel-bd" id="mainnetProgress">
+                            <div style="font-size:0.72rem;color:var(--text3);margin-bottom:10px">
+                                Mainnet auto-activates when ALL criteria are met. These rules are immutable — no admin
+                                override.</div>
+                            <div id="mainnetBars">
+                                <div class="mn-row"><span class="mn-lbl">Peers (≥10)</span>
+                                    <div class="prop-bar">
+                                        <div class="prop-bar-fill" id="mnPeers" style="width:0%"></div>
+                                    </div><span class="mn-pct" id="mnPeersPct">0%</span>
+                                </div>
+                                <div class="mn-row"><span class="mn-lbl">Inferences (≥100)</span>
+                                    <div class="prop-bar">
+                                        <div class="prop-bar-fill" id="mnInf" style="width:0%"></div>
+                                    </div><span class="mn-pct" id="mnInfPct">0%</span>
+                                </div>
+                                <div class="mn-row"><span class="mn-lbl">Large ≥7B (≥10)</span>
+                                    <div class="prop-bar">
+                                        <div class="prop-bar-fill" id="mnLarge" style="width:0%"></div>
+                                    </div><span class="mn-pct" id="mnLargePct">0%</span>
+                                </div>
+                                <div class="mn-row"><span class="mn-lbl">Uptime (≥24h)</span>
+                                    <div class="prop-bar">
+                                        <div class="prop-bar-fill" id="mnUp" style="width:0%"></div>
+                                    </div><span class="mn-pct" id="mnUpPct">0%</span>
+                                </div>
+                            </div>
+                            <div id="mainnetStatus"
+                                style="margin-top:8px;font-size:0.78rem;color:var(--gold);font-weight:600"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── PAGE: Inference ── -->
+                <div class="page" id="pg-inference">
+                    <div class="page-title">Run Inference</div>
+                    <div class="panel">
+                        <div class="panel-hd">🤖 Distributed Inference Pipeline</div>
+                        <div class="panel-bd">
+                            <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+                                <select class="model-select" id="inferModel">
+                                    <option value="llama3.1:8b">LLaMA 3.1 8B</option>
+                                    <option value="mistral:7b">Mistral 7B</option>
+                                    <option value="qwen2.5:7b">Qwen 2.5 7B</option>
+                                    <option value="gemma2:9b">Gemma 2 9B</option>
+                                    <option value="phi4:14b">Phi-4 14B</option>
+                                    <option value="deepseek-r1:8b">DeepSeek R1 8B</option>
+                                    <option value="starcoder2:15b">StarCoder2 15B</option>
+                                    <option value="whisper-large-v3">Whisper Large V3</option>
+                                </select>
+                            </div>
+                            <div class="infer-wrap">
+                                <input type="text" class="infer-input" id="inferIn" placeholder="Enter your prompt…">
+                                <button class="btn-run" onclick="doInference()">Run ⚡</button>
+                            </div>
+                            <div class="infer-out" id="inferOut">Output will appear here after distributed inference…
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-hd">📊 Inference Stats</div>
+                        <div class="panel-bd">
+                            <div class="id-row"><span class="id-lbl">Total</span><span class="id-val"
+                                    id="infTotal">0</span></div>
+                            <div class="id-row"><span class="id-lbl">Last</span><span class="id-val"
+                                    id="infLast">—</span></div>
+                            <div class="id-row"><span class="id-lbl">Pipeline</span><span class="id-val"
+                                    id="infPipe">—</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── PAGE: Log ── -->
+                <div class="page" id="pg-log">
+                    <div class="page-title">Node Log</div>
+                    <div class="panel">
+                        <div class="panel-hd">
+                            📋 Live Log
+                            <button onclick="document.getElementById('logArea').innerHTML=''"
+                                style="background:transparent;border:1px solid var(--border);color:var(--text2);padding:2px 10px;border-radius:6px;cursor:pointer;font-size:0.7rem">Clear</button>
+                        </div>
+                        <div class="panel-bd">
+                            <div class="log" id="logArea" style="max-height:500px"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── PAGE: Models ── -->
+                <div class="page" id="pg-models">
+                    <div class="page-title">Model Catalog</div>
+                    <div class="cards" style="margin-bottom:16px">
+                        <div class="card">
+                            <div class="card-lbl">Total Models</div>
+                            <div class="card-val cyan">40+</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Families</div>
+                            <div class="card-val purple">15</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Formats</div>
+                            <div class="card-val green">3</div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-hd">🧠 Available Models</div>
+                        <div class="panel-bd" style="overflow-x:auto">
+                            <table class="tbl" id="modelTable">
+                                <thead>
+                                    <tr>
+                                        <th>Model</th>
+                                        <th>Size</th>
+                                        <th>Category</th>
+                                        <th>Family</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modelBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── PAGE: Peers ── -->
+                <div class="page" id="pg-peers">
+                    <div class="page-title">Network Peers</div>
+                    <div class="cards">
+                        <div class="card">
+                            <div class="card-lbl">Connected</div>
+                            <div class="card-val cyan" id="peerCount">0</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Avg Latency</div>
+                            <div class="card-val green" id="peerLatency">— ms</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Network Health</div>
+                            <div class="card-val purple" id="peerHealth">—</div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-hd">📡 Connected Peers</div>
+                        <div class="panel-bd" id="peerList" style="max-height:400px;overflow-y:auto">
+                            <div style="color:var(--text3);text-align:center;padding:20px;font-size:0.82rem">Searching
+                                for peers…</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── PAGE: Governance ── -->
+                <div class="page" id="pg-governance">
+                    <div class="page-title">Governance</div>
+                    <div class="cards">
+                        <div class="card">
+                            <div class="card-lbl">Active Proposals</div>
+                            <div class="card-val cyan" id="govActive">0</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Total Votes</div>
+                            <div class="card-val green" id="govVotes">0</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Quorum</div>
+                            <div class="card-val purple">51%</div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-hd">
+                            🏛️ Proposals
+                            <button onclick="createProposal()"
+                                style="background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.25);color:var(--cyan);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:0.72rem;font-weight:600">+
+                                New Proposal</button>
+                        </div>
+                        <div class="panel-bd" id="proposalList"></div>
+                    </div>
+                </div>
+
+                <!-- ── PAGE: Wallet ── -->
+                <div class="page" id="pg-wallet">
+                    <div class="page-title">Wallet</div>
+                    <div class="cards">
+                        <div class="card">
+                            <div class="card-lbl">CDI Balance</div>
+                            <div class="card-val gold" id="walBal">0.00</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Earned Total</div>
+                            <div class="card-val green" id="walEarned">0.00</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-lbl">Transactions</div>
+                            <div class="card-val cyan" id="walTx">0</div>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-hd">🚰 Testnet Faucet</div>
+                        <div class="panel-bd" style="display:flex;gap:8px;flex-wrap:wrap">
+                            <button class="btn-faucet" onclick="claimFaucet('first_inference')">🤖 First Inference (+5
+                                CDI)</button>
+                            <button class="btn-faucet" onclick="claimFaucet('model_host')">🧠 Host Model (+15
+                                CDI)</button>
+                            <button class="btn-faucet" onclick="claimFaucet('governance_vote')">🗳️ Vote (+2
+                                CDI)</button>
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-hd">📜 Transaction History</div>
+                        <div class="panel-bd" id="txList" style="max-height:300px;overflow-y:auto">
+                            <div style="color:var(--text3);text-align:center;padding:20px;font-size:0.82rem">No
+                                transactions yet</div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- ── SCRIPT: Full CDI Node ── -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <script type="module">
+        import {
+            initWasm, loadOrCreateWallet, connectMetaMask,
+            startNode, getNodeStatus, getStoredBinding,
+            runInference, onNodeEvent, getSubsystems
+        } from './browser/cdi-node.js';
+
+        let _wallet = null;
+
+        // ── Logging ──
+        function log(msg, level = 'i') {
+            const a = document.getElementById('logArea');
+            if (!a) return;
+            const t = new Date().toLocaleTimeString();
+            a.innerHTML += `<div><span class="t">[${t}]</span> <span class="${level}">${msg}</span></div>`;
+            a.scrollTop = a.scrollHeight;
+        }
+
+        // ── Node event bus → UI ──
+        onNodeEvent((ev, d) => {
+            switch (ev) {
+                case 'wasm:ready': log('WASM ✓', 's'); break;
+                case 'p2p:started': log('P2P (libp2p/WebRTC) ✓', 's'); break;
+                case 'storage:ready': log('Helia + OrbitDB ✓', 's'); break;
+                case 'compute:webgpu': log('WebGPU compute ✓', 's'); document.getElementById('idGpu').textContent = '✅ Active'; break;
+                case 'compute:cpu': log('CPU fallback (no WebGPU)', 'w'); document.getElementById('idGpu').textContent = '❌ CPU only'; break;
+                case 'security:ready': log('Security (Rate/Rep/Sybil/ZKP) ✓', 's'); break;
+                case 'catalog:ready': log('Model Catalog ✓', 's'); break;
+                case 'governance:ready': log('Governance ✓', 's'); break;
+                case 'genesis:mined': log(`⛏️ Genesis block #0 mined! ${d.models} seed models loaded`, 's'); break;
+                case 'genesis:loaded': log('Genesis block loaded', 's'); break;
+                case 'faucet:claimed': log(`Faucet: +${d.amount} CDI (${d.type})`, 's'); addTx('faucet', d.amount); break;
+                case 'peer:connected': log(`Peer ${d.peerId?.slice(0, 12)}… (${d.total})`); addPeer(d); updateMainnetProgress(); break;
+                case 'peer:disconnected': log(`Peer lost: ${d.peerId?.slice(0, 12)}… (${d.total})`, 'w'); break;
+                case 'inference:start': log(`Inference → "${d.prompt?.slice(0, 40)}…"`); break;
+                case 'inference:complete': log('Inference complete ✓', 's'); updateMainnetProgress(); break;
+                case 'mainnet:activated':
+                    log('🚀 MAINNET ACTIVATED!', 's');
+                    document.getElementById('idNet').textContent = 'MAINNET';
+                    document.getElementById('mainnetStatus').textContent = '🚀 MAINNET LIVE — All criteria met!';
+                    break;
+                case 'node:ready':
+                    log('━━━━━━━━━━━━━━━━━━━━━━━', 's');
+                    log('ALL SUBSYSTEMS ONLINE', 's');
+                    log('━━━━━━━━━━━━━━━━━━━━━━━', 's');
+                    updateSubsystemUI();
+                    updateMainnetProgress();
+                    break;
+            }
+        });
+
+        // ── Init ──
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await initWasm();
+                _wallet = loadOrCreateWallet();
+                log(`Wallet: ${_wallet.peerId.slice(0, 16)}…`);
+                const b = getStoredBinding();
+                if (b && window.ethereum) {
+                    try {
+                        const a = await window.ethereum.request({ method: 'eth_accounts' });
+                        if (a.length > 0 && a[0].toLowerCase() === b.ethAddress.toLowerCase()) {
+                            log('Auto-reconnecting…');
+                            await doConnect(true);
+                            return;
+                        }
+                    } catch (e) { }
+                }
+            } catch (e) { log('Init: ' + e.message, 'w'); }
+        });
+
+        // ── Join ──
+        window.joinNetwork = async function () {
+            const btn = document.getElementById('btnJoin');
+            btn.disabled = true; btn.textContent = 'Initializing…';
+            try {
+                await initWasm();
+                _wallet = loadOrCreateWallet();
+                await doConnect(false);
+            } catch (e) {
+                log('Error: ' + e.message, 'e');
+                btn.disabled = false; btn.textContent = '🌐 Join the Network';
+            }
+        };
+
+        async function doConnect(auto) {
+            if (!auto) {
+                const b = await connectMetaMask();
+                log('MetaMask bound: ' + b.ethAddress.slice(0, 10) + '…', 's');
+            } else { await connectMetaMask(); }
+            await startNode();
+            enterApp();
+        }
+
+        function enterApp() {
+            document.getElementById('hero').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            const nb = document.getElementById('navBadge');
+            nb.classList.remove('off'); nb.classList.add('on');
+            document.getElementById('navBadgeText').textContent = 'Node Active';
+
+            const b = getStoredBinding();
+            document.getElementById('idPeer').textContent = _wallet.peerId;
+            document.getElementById('idEth').textContent = b?.ethAddress || '—';
+            document.getElementById('idKey').textContent = _wallet.publicKey;
+            document.getElementById('idGpu').textContent = navigator.gpu ? '✅ Active' : '❌ CPU only';
+
+            populateModels();
+            populateProposals();
+            startStatsLoop();
+        }
+
+        // ── Stats loop ──
+        function startStatsLoop() {
+            setInterval(() => {
+                const s = getNodeStatus();
+                document.getElementById('dEarn').textContent = s.earnings.toFixed(2);
+                document.getElementById('dPeers').textContent = s.peers;
+                document.getElementById('dShards').textContent = s.shards;
+                const h = String(Math.floor(s.uptime / 3600)).padStart(2, '0');
+                const m = String(Math.floor((s.uptime % 3600) / 60)).padStart(2, '0');
+                const sc = String(s.uptime % 60).padStart(2, '0');
+                document.getElementById('dUp').textContent = `${h}:${m}:${sc}`;
+                document.getElementById('walBal').textContent = s.earnings.toFixed(2);
+                document.getElementById('walEarned').textContent = s.earnings.toFixed(2);
+                document.getElementById('peerCount').textContent = s.peers;
+                document.getElementById('infTotal').textContent = s.inferences || 0;
+            }, 1000);
+        }
+
+        // ── Subsystem status ──
+        function updateSubsystemUI() {
+            const s = getNodeStatus().subsystems || {};
+            const el = document.getElementById('subsystemList');
+            el.innerHTML = Object.entries(s).map(([k, v]) =>
+                `<div style="display:inline-block;margin:3px 6px;padding:3px 10px;border-radius:6px;font-size:0.72rem;background:${v ? 'rgba(0,230,118,0.1)' : 'rgba(255,82,82,0.1)'};color:${v ? 'var(--green)' : 'var(--red)'}">${v ? '✓' : '✗'} ${k}</div>`
+            ).join('');
+        }
+
+        function updateMainnetProgress() {
+            const st = getNodeStatus();
+            const p = st.mainnetProgress;
+            if (!p) return;
+            // Update bars
+            const set = (id, pct) => {
+                const bar = document.getElementById(id);
+                const lbl = document.getElementById(id + 'Pct');
+                if (bar) bar.style.width = pct + '%';
+                if (lbl) lbl.textContent = pct + '%';
+            };
+            set('mnPeers', p.peers?.pct || 0);
+            set('mnInf', p.inferences?.pct || 0);
+            set('mnLarge', p.largeModels?.pct || 0);
+            set('mnUp', p.uptime?.pct || 0);
+            // Network indicator
+            document.getElementById('idNet').textContent = st.network === 'mainnet' ? 'MAINNET 🚀' : 'testnet';
+            if (st.network === 'mainnet') {
+                document.getElementById('mainnetStatus').textContent = '🚀 MAINNET LIVE — All criteria met!';
+            }
+        }
+
+        // ── Inference ──
+        window.doInference = async function () {
+            const input = document.getElementById('inferIn');
+            const output = document.getElementById('inferOut');
+            const model = document.getElementById('inferModel').value;
+            const prompt = input.value.trim();
+            if (!prompt) return;
+            output.textContent = 'Distributing across network…';
+            document.getElementById('infPipe').textContent = model;
+            try {
+                const t0 = Date.now();
+                const result = await runInference(prompt, model);
+                const ms = Date.now() - t0;
+                output.textContent = result?.output || JSON.stringify(result);
+                document.getElementById('infLast').textContent = `${ms}ms`;
+            } catch (e) {
+                output.textContent = 'Error: ' + e.message;
+                log('Inference error: ' + e.message, 'e');
+            }
+        };
+
+        // ── Model Catalog ──
+        const MODELS = [
+            { name: 'LLaMA 3.1 8B', size: '4.7 GB', cat: 'chat', family: 'Meta' },
+            { name: 'LLaMA 3.1 70B', size: '40 GB', cat: 'chat', family: 'Meta' },
+            { name: 'Mistral 7B v0.3', size: '4.1 GB', cat: 'chat', family: 'Mistral' },
+            { name: 'Qwen 2.5 7B', size: '4.4 GB', cat: 'chat', family: 'Alibaba' },
+            { name: 'Gemma 2 9B', size: '5.4 GB', cat: 'chat', family: 'Google' },
+            { name: 'Phi-4 14B', size: '7.9 GB', cat: 'reason', family: 'Microsoft' },
+            { name: 'DeepSeek R1 8B', size: '4.9 GB', cat: 'reason', family: 'DeepSeek' },
+            { name: 'DeepSeek Coder V2', size: '8.9 GB', cat: 'code', family: 'DeepSeek' },
+            { name: 'StarCoder2 15B', size: '9.1 GB', cat: 'code', family: 'BigCode' },
+            { name: 'Qwen2.5-Coder 7B', size: '4.4 GB', cat: 'code', family: 'Alibaba' },
+            { name: 'LLaVA 1.6 13B', size: '7.8 GB', cat: 'vision', family: 'LLaVA' },
+            { name: 'InternVL2 8B', size: '4.9 GB', cat: 'vision', family: 'InternLM' },
+            { name: 'Whisper Large V3', size: '1.5 GB', cat: 'audio', family: 'OpenAI' },
+            { name: 'Nomic Embed v1.5', size: '0.3 GB', cat: 'embed', family: 'Nomic' },
+            { name: 'BGE Large v1.5', size: '0.4 GB', cat: 'embed', family: 'BAAI' },
+            { name: 'Meditron 70B', size: '40 GB', cat: 'chat', family: 'EPFL' },
+            { name: 'DeepSeek Math 7B', size: '4.1 GB', cat: 'reason', family: 'DeepSeek' },
+        ];
+
+        function populateModels() {
+            const tb = document.getElementById('modelBody');
+            tb.innerHTML = MODELS.map(m => `<tr>
+                <td style="font-weight:500">${m.name}</td>
+                <td style="color:var(--text2)">${m.size}</td>
+                <td><span class="badge badge-${m.cat}">${m.cat}</span></td>
+                <td style="color:var(--text3)">${m.family}</td>
+            </tr>`).join('');
+        }
+
+        // ── Governance ──
+        const PROPOSALS = [
+            { id: 1, title: 'Increase provider share to 90%', desc: 'Raise provider fee from 85% to 90%', yes: 42, no: 18, status: 'active' },
+            { id: 2, title: 'Add Llama 4 Scout to catalog', desc: 'Add new Meta model when released', yes: 67, no: 3, status: 'active' },
+            { id: 3, title: 'Reduce halving interval by 20%', desc: 'Accelerate emission schedule', yes: 12, no: 45, status: 'active' },
+        ];
+
+        function populateProposals() {
+            const el = document.getElementById('proposalList');
+            el.innerHTML = PROPOSALS.map(p => {
+                const total = p.yes + p.no;
+                const pct = total > 0 ? Math.round((p.yes / total) * 100) : 0;
+                return `<div class="prop-card">
+                    <div class="prop-title">${p.title}</div>
+                    <div class="prop-meta">${p.desc}</div>
+                    <div class="prop-bar"><div class="prop-bar-fill" style="width:${pct}%"></div></div>
+                    <div class="prop-votes">
+                        <span>👍 ${p.yes} / 👎 ${p.no} (${pct}% approval)</span>
+                        <span>
+                            <button class="btn-vote yes" onclick="vote(${p.id},true)">Yes</button>
+                            <button class="btn-vote no" onclick="vote(${p.id},false)">No</button>
+                        </span>
+                    </div>
+                </div>`;
+            }).join('');
+            document.getElementById('govActive').textContent = PROPOSALS.filter(p => p.status === 'active').length;
+            document.getElementById('govVotes').textContent = PROPOSALS.reduce((a, p) => a + p.yes + p.no, 0);
+        }
+
+        window.vote = function (id, yn) {
+            const p = PROPOSALS.find(x => x.id === id);
+            if (p) { yn ? p.yes++ : p.no++; populateProposals(); log(`Voted ${yn ? 'YES' : 'NO'} on "${p.title}"`, 's'); }
+        };
+
+        window.createProposal = function () {
+            const title = prompt('Proposal title:');
+            if (!title) return;
+            const desc = prompt('Description:') || '';
+            PROPOSALS.push({ id: PROPOSALS.length + 1, title, desc, yes: 1, no: 0, status: 'active' });
+            populateProposals();
+            log(`Created proposal: "${title}"`, 's');
+        };
+
+        // ── Peers ──
+        function addPeer(d) {
+            const el = document.getElementById('peerList');
+            if (el.querySelector('.peer-row') === null) el.innerHTML = '';
+            el.innerHTML += `<div class="peer-row">
+                <div class="peer-dot"></div>
+                <div class="peer-id">${d.peerId || '—'}</div>
+                <div class="peer-tag">${d.shards || 0} shards</div>
+            </div>`;
+        }
+
+        // ── Wallet / Faucet ──
+        let _txs = [];
+        function addTx(type, amount) {
+            _txs.push({ type, amount, time: new Date().toLocaleTimeString() });
+            const el = document.getElementById('txList');
+            el.innerHTML = _txs.slice().reverse().map(tx =>
+                `<div class="tx-row">
+                    <span class="tx-type">${tx.time} — ${tx.type}</span>
+                    <span class="tx-amount ${tx.amount >= 0 ? 'plus' : 'minus'}">${tx.amount >= 0 ? '+' : ''}${tx.amount.toFixed(2)} CDI</span>
+                </div>`
+            ).join('');
+            document.getElementById('walTx').textContent = _txs.length;
+        }
+
+        window.claimFaucet = async function (type) {
+            try {
+                const sub = getSubsystems();
+                if (sub.faucet) {
+                    const peerId = getNodeStatus().peerId;
+                    sub.faucet.claimReward(peerId, type);
+                }
+                const amounts = { first_inference: 5, model_host: 15, governance_vote: 2 };
+                addTx('faucet:' + type, amounts[type] || 5);
+                log(`Faucet claimed: ${type} (+${amounts[type] || 5} CDI)`, 's');
+            } catch (e) {
+                log('Faucet: ' + e.message, 'w');
+            }
+        };
+
+        // ── Navigation ──
+        window.showPage = function (id) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+            document.getElementById('pg-' + id).classList.add('active');
+            event.currentTarget.classList.add('active');
+        };
+
+        window.goHome = function () {
+            if (document.getElementById('app').style.display === 'block') {
+                showPage('dashboard');
+                document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+                document.querySelector('.sb-item').classList.add('active');
+            }
+        };
+    </script>
+</body>
+
+</html>
