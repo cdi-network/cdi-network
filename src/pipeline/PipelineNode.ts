@@ -1,17 +1,27 @@
 /**
- * PipelineNode — Docker-ready standalone process that:
- * 1. Creates a LayerServer with a simulated compute function
- * 2. Wraps it in an ActivationRelayServer for WebSocket access
- * 3. Registers itself with a PipelineRegistry
- * 4. Responds to health checks
+ * PipelineNode v2 — Docker-ready standalone process that supports:
+ *
+ * COMPUTE_MODE:
+ *   - 'simulated' (default): deterministic scale-factor computation
+ *   - 'ollama': real LLM inference via OllamaComputeAdapter
+ *
+ * REGISTRY_MODE:
+ *   - 'none' (default): no peer discovery
+ *   - 'orbitdb': real P2P registry via OrbitDB + libp2p
  *
  * Config via constructor or env vars:
- *   NODE_ID, START_LAYER, END_LAYER, LISTEN_PORT, HMAC_SECRET
+ *   NODE_ID, START_LAYER, END_LAYER, LISTEN_PORT, HMAC_SECRET,
+ *   COMPUTE_MODE, OLLAMA_HOST, OLLAMA_PORT, OLLAMA_MODEL,
+ *   REGISTRY_MODE, ORBITDB_DIR, BOOTSTRAP_PEERS
  */
 
 import { LayerServer, type ComputeFn } from './LayerServer.js';
 import { ActivationRelayServer } from './ActivationRelay.js';
+import { OllamaComputeAdapter } from './OllamaComputeAdapter.js';
 import type { NodeRegistration } from './PipelineRegistry.js';
+
+export type ComputeMode = 'simulated' | 'ollama';
+export type RegistryMode = 'none' | 'orbitdb';
 
 export interface PipelineNodeConfig {
     nodeId: string;
@@ -20,6 +30,13 @@ export interface PipelineNodeConfig {
     port: number;
     hmacSecret: string;
     computeFn?: ComputeFn;
+    computeMode?: ComputeMode;
+    registryMode?: RegistryMode;
+    ollamaHost?: string;
+    ollamaPort?: number;
+    ollamaModel?: string;
+    orbitDbDir?: string;
+    bootstrapPeers?: string[];
 }
 
 /**
@@ -42,31 +59,51 @@ export class PipelineNode {
     private running = false;
     private address = '';
     private registration: NodeRegistration;
+    private orbitDbManager: any = null; // Lazy loaded for orbitdb mode
+    private pipelineRegistry: any = null;
 
     constructor(config: PipelineNodeConfig) {
         this.config = config;
+
+        const computeMode = config.computeMode ?? 'simulated';
+        const computeFn = config.computeFn ?? this.resolveComputeFn(computeMode);
 
         this.layerServer = new LayerServer({
             nodeId: config.nodeId,
             startLayer: config.startLayer,
             endLayer: config.endLayer,
-            computeFn: config.computeFn ?? defaultComputeFn,
+            computeFn,
         });
 
         this.registration = {
             nodeId: config.nodeId,
-            peerId: config.nodeId, // In Docker, use nodeId as peerId
+            peerId: config.nodeId,
             host: '0.0.0.0',
             port: config.port,
             startLayer: config.startLayer,
             endLayer: config.endLayer,
-            model: 'simulated',
+            model: computeMode === 'ollama' ? (config.ollamaModel ?? 'tinyllama') : 'simulated',
             status: 'offline' as const,
         };
     }
 
     /**
-     * Start the relay server and register with the pipeline.
+     * Resolve the ComputeFn based on COMPUTE_MODE.
+     */
+    private resolveComputeFn(mode: ComputeMode): ComputeFn {
+        if (mode === 'ollama') {
+            const adapter = new OllamaComputeAdapter({
+                host: this.config.ollamaHost ?? '127.0.0.1',
+                port: this.config.ollamaPort ?? 11434,
+                model: this.config.ollamaModel ?? 'tinyllama',
+            });
+            return adapter.toComputeFn();
+        }
+        return defaultComputeFn;
+    }
+
+    /**
+     * Start the relay server and optionally register with OrbitDB.
      * Returns the WebSocket address.
      */
     async start(): Promise<string> {
@@ -87,13 +124,87 @@ export class PipelineNode {
         this.registration.host = '127.0.0.1';
         this.registration.status = 'online';
 
+        // OrbitDB self-registration
+        const registryMode = this.config.registryMode ?? 'none';
+        if (registryMode === 'orbitdb') {
+            await this.initOrbitDbRegistry();
+        }
+
         return this.address;
+    }
+
+    /**
+     * Initialize OrbitDB and self-register with the PipelineRegistry.
+     */
+    private async initOrbitDbRegistry(): Promise<void> {
+        const { OrbitDbManagerBuilder } = await import('../core/OrbitDbManager.js');
+        const { PipelineRegistry } = await import('./PipelineRegistry.js');
+
+        const builder = new OrbitDbManagerBuilder()
+            .withDirectory(this.config.orbitDbDir ?? `./orbitdb/${this.config.nodeId}`);
+
+        if (this.config.bootstrapPeers?.length) {
+            builder.withBootstrapPeers(this.config.bootstrapPeers);
+        }
+
+        this.orbitDbManager = await builder.build();
+        const registryStore = await this.orbitDbManager.openKeyValueDb('pipeline-registry');
+
+        // Adapt OrbitDB KV store to RegistryStore interface
+        const storeAdapter = {
+            put: async (entry: any) => await registryStore.put(entry._id ?? entry.nodeId, entry),
+            get: async (id: string) => await registryStore.get(id),
+            del: async (id: string) => await registryStore.del(id),
+            all: async () => {
+                const entries: any[] = [];
+                for await (const entry of registryStore.iterator()) {
+                    entries.push({ key: entry.key, value: entry.value });
+                }
+                return entries;
+            },
+        };
+
+        this.pipelineRegistry = new PipelineRegistry(storeAdapter);
+
+        // Self-register
+        const peerId = this.orbitDbManager.getPeerId();
+        this.registration.peerId = peerId;
+
+        await this.pipelineRegistry.registerNode({
+            nodeId: this.config.nodeId,
+            peerId,
+            host: this.registration.host,
+            port: this.registration.port,
+            startLayer: this.config.startLayer,
+            endLayer: this.config.endLayer,
+            model: this.registration.model,
+        });
+
+        console.log(JSON.stringify({
+            event: 'orbitdb_registered',
+            nodeId: this.config.nodeId,
+            peerId,
+        }));
     }
 
     /**
      * Gracefully stop the node.
      */
     async stop(): Promise<void> {
+        // Unregister from OrbitDB if active
+        if (this.pipelineRegistry) {
+            try {
+                await this.pipelineRegistry.unregisterNode(this.config.nodeId);
+            } catch { /* best effort */ }
+        }
+        if (this.orbitDbManager) {
+            try {
+                await this.orbitDbManager.stop();
+            } catch { /* best effort */ }
+            this.orbitDbManager = null;
+            this.pipelineRegistry = null;
+        }
+
         if (this.relayServer) {
             await this.relayServer.close();
             this.relayServer = null;
@@ -114,6 +225,14 @@ export class PipelineNode {
         return { ...this.registration };
     }
 
+    getComputeMode(): ComputeMode {
+        return this.config.computeMode ?? 'simulated';
+    }
+
+    getRegistryMode(): RegistryMode {
+        return this.config.registryMode ?? 'none';
+    }
+
     /**
      * Create a PipelineNode from environment variables.
      */
@@ -124,6 +243,15 @@ export class PipelineNode {
             endLayer: parseInt(process.env.END_LAYER ?? '9', 10),
             port: parseInt(process.env.LISTEN_PORT ?? '9000', 10),
             hmacSecret: process.env.HMAC_SECRET ?? 'default-secret',
+            computeMode: (process.env.COMPUTE_MODE as ComputeMode) ?? 'simulated',
+            registryMode: (process.env.REGISTRY_MODE as RegistryMode) ?? 'none',
+            ollamaHost: process.env.OLLAMA_HOST,
+            ollamaPort: process.env.OLLAMA_PORT ? parseInt(process.env.OLLAMA_PORT, 10) : undefined,
+            ollamaModel: process.env.OLLAMA_MODEL,
+            orbitDbDir: process.env.ORBITDB_DIR,
+            bootstrapPeers: process.env.BOOTSTRAP_PEERS
+                ? process.env.BOOTSTRAP_PEERS.split(',')
+                : [],
         });
     }
 }
@@ -141,6 +269,9 @@ if (process.argv[1]?.endsWith('PipelineNode.js')) {
             address: addr,
             nodeId: reg.nodeId,
             layers: `${reg.startLayer}-${reg.endLayer}`,
+            computeMode: node.getComputeMode(),
+            registryMode: node.getRegistryMode(),
+            model: reg.model,
         }));
     }).catch((err) => {
         console.error('Failed to start PipelineNode:', err);
