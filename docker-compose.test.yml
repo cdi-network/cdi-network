@@ -1,0 +1,37 @@
+# Auto-generated: 2 nodes for L1 smoke test
+version: "3.8"
+
+networks:
+  swarm-net:
+    driver: bridge
+
+services:
+  node-0:
+    build: .
+    container_name: swarm-node-0
+    environment:
+      NODE_ID: node-0
+      START_LAYER: "0"
+      END_LAYER: "29"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9000:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+
+  node-1:
+    build: .
+    container_name: swarm-node-1
+    environment:
+      NODE_ID: node-1
+      START_LAYER: "30"
+      END_LAYER: "59"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+    ports:
+      - "9001:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
