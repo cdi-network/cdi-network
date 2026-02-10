@@ -37,6 +37,7 @@
     "winston": "^3.19.0"
   },
   "dependencies": {
+    "snarkjs": "^0.7.6",
     "ws": "^8.19.0"
   }
 }
