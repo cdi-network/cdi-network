@@ -1,0 +1,100 @@
+# CDI Network — Multi-node Testnet
+#
+# Launches 3 inference nodes + 1 Ollama instance + bootstrap peer.
+# Each node gets its own OrbitDB directory and wallet.
+#
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f
+#
+# API endpoints:
+#   Node 1: http://localhost:3001
+#   Node 2: http://localhost:3002
+#   Node 3: http://localhost:3003
+
+services:
+  # ── Ollama (shared GPU inference backend) ──────────────
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Bootstrap Node (seed peer for discovery) ───────────
+  node-bootstrap:
+    build: .
+    environment:
+      NODE_ID: bootstrap
+      OLLAMA_HOST: ollama
+      OLLAMA_PORT: 11434
+      LISTEN_PORT: 9000
+      API_PORT: 3000
+      ORBITDB_DIR: /data/orbitdb
+      WALLET_DIR: /data/wallet
+    volumes:
+      - bootstrap-data:/data
+    ports:
+      - "3001:3000"
+      - "9001:9000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  # ── Node 2 ─────────────────────────────────────────────
+  node-2:
+    build: .
+    environment:
+      NODE_ID: node-2
+      OLLAMA_HOST: ollama
+      OLLAMA_PORT: 11434
+      LISTEN_PORT: 9000
+      API_PORT: 3000
+      ORBITDB_DIR: /data/orbitdb
+      WALLET_DIR: /data/wallet
+      BOOTSTRAP_PEERS: /ip4/node-bootstrap/tcp/9000
+    volumes:
+      - node2-data:/data
+    ports:
+      - "3002:3000"
+      - "9002:9000"
+    depends_on:
+      - node-bootstrap
+
+  # ── Node 3 ─────────────────────────────────────────────
+  node-3:
+    build: .
+    environment:
+      NODE_ID: node-3
+      OLLAMA_HOST: ollama
+      OLLAMA_PORT: 11434
+      LISTEN_PORT: 9000
+      API_PORT: 3000
+      ORBITDB_DIR: /data/orbitdb
+      WALLET_DIR: /data/wallet
+      BOOTSTRAP_PEERS: /ip4/node-bootstrap/tcp/9000
+    volumes:
+      - node3-data:/data
+    ports:
+      - "3003:3000"
+      - "9003:9000"
+    depends_on:
+      - node-bootstrap
+
+volumes:
+  ollama-models:
+  bootstrap-data:
+  node2-data:
+  node3-data:

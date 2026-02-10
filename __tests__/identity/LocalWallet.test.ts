@@ -119,4 +119,38 @@ describe('LocalWallet', () => {
         const sig = restored.sign(data);
         expect(LocalWallet.verify(restored.publicKey, data, sig)).toBe(true);
     });
+
+    // ── File Persistence ────────────────────────────────
+
+    test('save and load wallet from disk', () => {
+        const tmpDir = `/tmp/cdi-test-${Date.now()}`;
+        const wallet = LocalWallet.generate();
+
+        wallet.save(tmpDir);
+
+        const loaded = LocalWallet.load(tmpDir);
+        expect(loaded).not.toBeNull();
+        expect(loaded!.peerId).toBe(wallet.peerId);
+
+        // Signing still works
+        const data = new TextEncoder().encode('persistence test');
+        const sig = loaded!.sign(data);
+        expect(LocalWallet.verify(loaded!.publicKey, data, sig)).toBe(true);
+    });
+
+    test('loadOrGenerate creates new wallet if none exists', () => {
+        const tmpDir = `/tmp/cdi-test-new-${Date.now()}`;
+        const wallet = LocalWallet.loadOrGenerate(tmpDir);
+
+        expect(wallet.peerId).toBeDefined();
+
+        // Second call returns same wallet
+        const same = LocalWallet.loadOrGenerate(tmpDir);
+        expect(same.peerId).toBe(wallet.peerId);
+    });
+
+    test('load returns null when no wallet file', () => {
+        const result = LocalWallet.load(`/tmp/cdi-nonexistent-${Date.now()}`);
+        expect(result).toBeNull();
+    });
 });
