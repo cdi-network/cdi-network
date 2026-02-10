@@ -1,0 +1,75 @@
+# Real-mode docker-compose: 2 nodes + Ollama sidecar
+# Used for L1 real integration test
+version: "3.8"
+
+networks:
+  swarm-net:
+    driver: bridge
+
+volumes:
+  ollama-data:
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: swarm-ollama
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - swarm-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  node-0:
+    build: .
+    container_name: swarm-node-0
+    environment:
+      NODE_ID: node-0
+      START_LAYER: "0"
+      END_LAYER: "29"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+      COMPUTE_MODE: "ollama"
+      REGISTRY_MODE: "none"
+      OLLAMA_HOST: "ollama"
+      OLLAMA_PORT: "11434"
+      OLLAMA_MODEL: "tinyllama"
+    ports:
+      - "9000:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  node-1:
+    build: .
+    container_name: swarm-node-1
+    environment:
+      NODE_ID: node-1
+      START_LAYER: "30"
+      END_LAYER: "59"
+      LISTEN_PORT: "9000"
+      HMAC_SECRET: "swarm-secret"
+      COMPUTE_MODE: "ollama"
+      REGISTRY_MODE: "none"
+      OLLAMA_HOST: "ollama"
+      OLLAMA_PORT: "11434"
+      OLLAMA_MODEL: "tinyllama"
+    ports:
+      - "9001:9000"
+    networks:
+      - swarm-net
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy

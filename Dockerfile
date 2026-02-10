@@ -14,12 +14,25 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 
-# Default env vars (overridden by docker-compose)
+# Core env vars (overridden by docker-compose)
 ENV NODE_ID=node-0
 ENV START_LAYER=0
 ENV END_LAYER=9
 ENV LISTEN_PORT=9000
 ENV HMAC_SECRET=swarm-secret
+
+# v2: Compute and registry modes
+ENV COMPUTE_MODE=simulated
+ENV REGISTRY_MODE=none
+
+# v2: Ollama config (used when COMPUTE_MODE=ollama)
+ENV OLLAMA_HOST=ollama
+ENV OLLAMA_PORT=11434
+ENV OLLAMA_MODEL=tinyllama
+
+# v2: OrbitDB config (used when REGISTRY_MODE=orbitdb)
+ENV ORBITDB_DIR=/app/orbitdb
+ENV BOOTSTRAP_PEERS=
 
 EXPOSE 9000
 
