@@ -797,3 +797,41 @@ git merge automation/feature/ws1-ollama-client
 git checkout main
 git merge automation/development
 ```
+
+---
+
+## Performance Optimization: Rapidsnark ZK Prover
+
+> **Branch**: `automation/feature/rapidsnark-prover`
+> **Goal**: Migrate ZK proof generation from snarkjs (pure JS, ~550ms) to rapidsnark (C++ native, ~15ms) for ~35x speedup.
+
+### Architecture
+
+```
+snarkjs.groth16.fullProve() → split into:
+  1. snarkjs.wtns.calculate()    → witness.wtns  (~10ms, WASM)
+  2. rapidsnark prover binary    → proof.json    (~15ms, C++)
+  ──────────────────────────────
+  Total: ~25ms vs ~550ms (22x faster)
+```
+
+### Changes
+
+| File | Action | Description |
+|------|--------|-------------|
+| `src/crypto/ZkInferenceProver.ts` | MODIFY | Add `rapidsnark` backend: split witness gen + proof gen, fallback to snarkjs |
+| `Dockerfile` | MODIFY | Multi-stage build for rapidsnark C++ binary |
+| `scripts/build-rapidsnark.sh` | NEW | Local build script for macOS/Linux |
+| `__tests__/crypto/ZkRapidsnark.test.ts` | NEW | Benchmark + cross-verification test |
+
+### Dependencies
+
+- `cmake`, `g++`, `libgmp-dev`, `libsodium-dev`, `nasm` (build-time only)
+- No new npm packages — rapidsnark is a standalone binary
+
+### Verification
+
+- [ ] Rapidsnark proof < 50ms (benchmark test)
+- [ ] Rapidsnark proof verifiable by existing snarkjs verifier
+- [ ] Graceful fallback to snarkjs if binary not found
+- [ ] 133/133 existing tests still pass
