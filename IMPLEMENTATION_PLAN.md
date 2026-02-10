@@ -835,3 +835,697 @@ snarkjs.groth16.fullProve() → split into:
 - [ ] Rapidsnark proof verifiable by existing snarkjs verifier
 - [ ] Graceful fallback to snarkjs if binary not found
 - [ ] 133/133 existing tests still pass
+
+---
+
+## Phase 2: 100% Browser-Native Distributed Supercomputer ✅
+
+> **Status**: Implemented + 61 tests passing.
+> **Branch**: `automation/feature/p2-browser-supercomputer` (merged to `automation/development`)
+> **Goal**: Every browser tab is a full node — zero servers. WASM core for crypto, MetaMask-first wallet, model sharding pipeline, governance, testnet faucet.
+
+### P2 Deliverables
+
+| WS | Module | What | Tests |
+|----|--------|------|-------|
+| **WS1** | `browser/cdi-wasm/` | Rust→WASM crate: Ed25519 wallet, tx signing, tokenomics | 23 |
+| **WS1** | `browser/cdi-node.js` | Browser node runtime: WASM init, MetaMask EIP-712, wallet persistence | — |
+| **WS1** | `browser/index.html` | Premium dark UI with MetaMask-first connect flow + dashboard | — |
+| **WS2** | `browser/sharding/ShardRegistry.js` | Shard manifest management, claim/release, heartbeat, eviction | 9 |
+| **WS2** | `browser/sharding/PipelineOrchestrator.js` | Pipeline build, sequential execution, failover, proportional rewards | 7 |
+| **WS3** | `browser/governance/GovernanceStore.js` | Proposal lifecycle: submit → vote → quorum (51%) → timelock → execute | 8 |
+| **WS3** | `browser/governance/Proposal.js` | Stake-weighted voting, tally, state transitions | 7 |
+| **WS4** | `browser/testnet/TestnetFaucet.js` | 4 reward types (10+50+20+20=100 CDI/node), testnet guard | 7 |
+
+### P2 Architecture
+
+```mermaid
+graph TB
+    subgraph "Browser Node (every tab = full node)"
+        WASM["CDI WASM Core<br/>(Rust → WASM 200KB)<br/>wallet, signing, tokenomics"]
+        WebGPU["WebGPU Compute<br/>[P3: ShardExecutor]"]
+        Wallet["MetaMask Bridge<br/>EIP-712 binding"]
+        ShardReg["ShardRegistry<br/>manifest + assignments"]
+        Pipeline["PipelineOrchestrator<br/>failover + rewards"]
+        Gov["GovernanceStore<br/>proposals + voting"]
+        Faucet["TestnetFaucet<br/>100 CDI airdrop"]
+    end
+```
+
+---
+
+## Phase 3: Real P2P + WebGPU Integration 🔶
+
+> **Status**: Not started.
+> **Goal**: Wire up the P2 modules with real libp2p WebRTC transport, Helia IPFS, OrbitDB persistence, and WebGPU compute. This turns the mock-ready P2 code into a functional distributed network.
+
+### WS-P3.1: libp2p WebRTC Browser P2P
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p3-libp2p-webrtc` |
+| **Depends on** | P2 WS1 (browser node) |
+| **Estimated effort** | 8h |
+
+#### Components
+
+##### [MODIFY] `browser/cdi-node.js`
+- Import `@libp2p/webrtc`, `@libp2p/circuit-relay-v2`, `@chainsafe/libp2p-gossipsub`
+- Configure libp2p node with WebRTC transport + Circuit Relay v2
+- Auto-discover peers via GossipSub
+- Peer connection events trigger ShardRegistry updates
+- Heartbeat protocol: periodic ping/pong to maintain shard assignments
+
+##### [NEW] `browser/p2p/ActivationRelay.js`
+- WebRTC data channel for streaming intermediate activations between pipeline stages
+- Binary-efficient: Float32Array serialization (no JSON for tensors)
+- Backpressure: pause producer if consumer is slow
+- Timeout: 30s per shard stage, then failover
+
+##### [NEW] `browser/p2p/PeerDiscovery.js`
+- GossipSub topic: `cdi-network/peer-announce`
+- Node announces: `{ peerId, shards, gpuCapability, bandwidth }`
+- Auto-connect to nodes hosting adjacent pipeline stages
+- Relay rotation: highest-uptime nodes become Circuit Relay peers
+
+#### Tests (TDD)
+| Test | Description |
+|---|---|
+| `should connect two browser nodes via WebRTC` | libp2p direct connect |
+| `should relay through Circuit Relay when direct fails` | NAT traversal |
+| `should discover peers via GossipSub` | Peer announce/subscribe |
+| `should stream activations via data channel` | Float32Array roundtrip |
+| `should handle peer disconnect + reconnect` | Resilience |
+
+---
+
+### WS-P3.2: Helia IPFS + OrbitDB Persistence
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p3-orbitdb-browser` |
+| **Depends on** | WS-P3.1 (libp2p first) |
+| **Estimated effort** | 6h |
+
+#### Components
+
+##### [NEW] `browser/storage/HeliaManager.js`
+- Initialize Helia (IPFS) in-browser with blockstore backed by IndexedDB
+- `addShard(weightBlob)` → returns CID
+- `getShard(cid)` → returns Blob
+- Cache strategy: LRU eviction when IndexedDB exceeds 2GB
+
+##### [MODIFY] `browser/sharding/ShardRegistry.js`
+- Replace in-memory Maps with OrbitDB Documents store
+- DB name: `cdi-shard-registry`
+- Auto-sync across all connected peers
+- Events: `update` → trigger ShardExecutor rebalance
+
+##### [MODIFY] `browser/governance/GovernanceStore.js`
+- Replace in-memory Maps with OrbitDB Documents store
+- DB name: `cdi-governance`
+- Proposals + votes replicate across network
+
+##### [NEW] `browser/storage/LedgerStore.js`
+- OrbitDB Documents store for CDI ledger
+- DB name: `cdi-ledger`
+- Records: `{ txId, from, to, amount, txType, timestamp, signature }`
+- Balance queries: filter by address, sum amounts
+
+#### Tests (TDD)
+| Test | Description |
+|---|---|
+| `should store and retrieve shard weights via Helia` | CID roundtrip |
+| `should sync ShardRegistry across 2 browser nodes` | OrbitDB replication |
+| `should sync GovernanceStore proposals` | OrbitDB replication |
+| `should record transactions in LedgerStore` | CRUD test |
+| `should evict old shards from IndexedDB` | LRU cache test |
+
+---
+
+### WS-P3.3: WebGPU ShardExecutor
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p3-webgpu-executor` |
+| **Depends on** | WS-P3.2 (Helia for model weights) |
+| **Estimated effort** | 12h |
+
+#### Components
+
+##### [NEW] `browser/compute/ShardExecutor.js`
+- Runs in a **Web Worker** (off main thread)
+- Downloads shard weights from Helia (cached in IndexedDB)
+- Initializes WebGPU device + adapter
+- Loads weights into GPU buffers
+- Compute shaders for: MatMul, LayerNorm, GELU, Attention, FFN
+- Input: Float32Array of activations from previous stage
+- Output: Float32Array of activations for next stage
+- Performance metrics: TFLOPS, memory usage, stage latency
+
+##### [NEW] `browser/compute/ComputeShaders.wgsl`
+- WGSL compute shaders for core transformer operations:
+  - `matmul`: Tiled matrix multiplication (workgroup size: 16×16)
+  - `layernorm`: Mean + variance + normalize
+  - `gelu`: GELU activation
+  - `softmax`: Numerically stable softmax
+  - `attention`: Multi-head attention (batch friendly)
+
+##### [NEW] `browser/compute/ModelLoader.js`
+- Parse ONNX model manifest
+- Split into shard chunks by layer range
+- Upload each shard to Helia → get CID
+- Register shards in ShardRegistry
+
+##### [NEW] `browser/compute/FallbackExecutor.js`
+- CPU-only fallback using WASM (for browsers without WebGPU)
+- Same interface as ShardExecutor
+- ~10x slower but works everywhere
+- Auto-detected: `navigator.gpu` check
+
+#### Tests (TDD)
+| Test | Description |
+|---|---|
+| `should detect WebGPU availability` | Feature check |
+| `should execute MatMul compute shader` | Small matrix test |
+| `should execute full attention layer` | Multi-head attention |
+| `should load shard weights from Helia` | Integration test |
+| `should fallback to CPU WASM when no WebGPU` | Fallback test |
+| `should measure TFLOPS accurately` | Performance test |
+
+---
+
+### WS-P3.4: End-to-End Distributed Inference
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p3-e2e-inference` |
+| **Depends on** | WS-P3.1, WS-P3.2, WS-P3.3 |
+| **Estimated effort** | 8h |
+
+#### Components
+
+##### [MODIFY] `browser/sharding/PipelineOrchestrator.js`
+- Replace mock `executeStage` callback with real WebRTC activation relay
+- Connect ShardExecutor outputs to next-stage inputs via ActivationRelay
+- Integrate CDI reward distribution via LedgerStore
+- Pipeline visualization: emit stage status events for UI
+
+##### [MODIFY] `browser/index.html`
+- Real-time pipeline visualization (progress bar per shard stage)
+- Live shard map: which nodes hold which model layers
+- Inference history with cost + rewards breakdown
+- WebGPU capability badge (GPU / CPU-only)
+
+##### [NEW] `browser/network/AutoBalancer.js`
+- Monitor shard demand via OrbitDB events
+- Auto-chunk: split popular models into finer shards
+- Auto-replicate: copy hot shards to idle nodes
+- Auto-evict: remove cold shards from constrained nodes
+- Configurable thresholds: `minReplicas`, `maxShardsPerNode`, `rebalanceIntervalMs`
+
+#### Tests (TDD)
+| Test | Description |
+|---|---|
+| `should run 3-node distributed inference pipeline` | Full E2E |
+| `should distribute CDI rewards proportionally` | Fee split verification |
+| `should auto-replicate hot shard` | AutoBalancer test |
+| `should visualize pipeline progress in UI` | Browser test |
+
+---
+
+### P3 Dependency Graph
+
+```mermaid
+graph LR
+    P2[P2 ✅] --> P3_1[WS-P3.1<br/>libp2p WebRTC]
+    P3_1 --> P3_2[WS-P3.2<br/>Helia + OrbitDB]
+    P3_2 --> P3_3[WS-P3.3<br/>WebGPU Executor]
+    P3_1 --> P3_4[WS-P3.4<br/>E2E Inference]
+    P3_2 --> P3_4
+    P3_3 --> P3_4
+    P3_4 --> P4[P4: Testnet Launch]
+```
+
+---
+
+## Phase 4: Testnet Launch & Community 📋
+
+> **Status**: Not started.
+> **Goal**: Launch the public testnet. Onboard first 50+ browser nodes. Prove distributed inference works on real users' hardware. Build community.
+
+### WS-P4.1: Testnet Infrastructure
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p4-testnet-launch` |
+| **Depends on** | P3 complete |
+| **Estimated effort** | 6h |
+
+#### Components
+
+##### [NEW] `browser/testnet/GenesisConfig.js`
+- Hardcoded genesis shard set (small model: TinyLlama 1.1B, 4 shards)
+- Bootstrap relay nodes: 3 long-lived browser tabs on team machines
+- Circuit Relay seed list for first-time peers
+- TestnetFaucet pre-funded with 10,000 CDI
+
+##### [MODIFY] `browser/index.html`
+- "TESTNET" badge + warning banner
+- Faucet integration: auto-claim 10 CDI on wallet connect
+- Shard volunteer button: "Host a shard" → downloads TinyLlama shard weights
+- Network stats dashboard: total nodes, total TFLOPS, inference count
+
+##### [NEW] `browser/testnet/HealthMonitor.js`
+- Periodic network health check (every 60s)
+- Metrics: peer count, shard coverage, pipeline success rate, avg latency
+- Alert: if any model shard has <2 replicas
+- Dashboard: network topology graph (D3.js)
+
+#### Verification
+| Step | Criteria |
+|---|---|
+| Genesis boot | 3 relay nodes online, TinyLlama shards registered |
+| Faucet | New user connects wallet → receives 10 CDI |
+| Shard hosting | User hosts shard → appears in registry within 30s |
+| Inference | Prompt completes via 4-node pipeline in <60s |
+| Rewards | Shard hosts earn CDI proportionally |
+
+---
+
+### WS-P4.2: Community & Documentation
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p4-community` |
+| **Depends on** | WS-P4.1 (working testnet) |
+| **Estimated effort** | 4h |
+
+#### Deliverables
+
+| Deliverable | Description |
+|---|---|
+| **Landing page** | Enhanced `docs/index.html` with testnet join CTA |
+| **README update** | Browser node quickstart, testnet instructions |
+| **Telegram group** | CDI Network community chat |
+| **X (Twitter)** | First posts: network demo, architecture explanations |
+| **YouTube video** | 5-min demo: connect wallet → earn CDI → run inference |
+| **Content calendar** | Week 1-4 posting plan |
+
+---
+
+### P4 Verification Matrix
+
+| Phase | What | How | Pass Criteria |
+|---|---|---|---|
+| Smoke | Genesis boot | Open 3 browser tabs | All 3 peers connect |
+| Functional | Shard distribution | Host TinyLlama across 4 tabs | All shards registered |
+| E2E | Distributed inference | Submit prompt via UI | Output returned in <60s |
+| Rewards | CDI airdrop + earnings | Check faucet + ledger | Balances correct |
+| Scale | 10-node network | 10 different devices | Pipeline still completes |
+| Community | Public access | Share URL externally | New user can join and host shard |
+
+---
+
+## Phase 5: Open-Weight Model Catalog 📋
+
+> **Status**: Not started.
+> **Goal**: Preload ALL major open-weight models into the network. Our local account is the **genesis uploader** — the primary account that shards, uploads, and registers every model. This creates the initial model catalog that the testnet network will serve.
+
+### WS-P5.1: Model Sharding Pipeline
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p5-model-catalog` |
+| **Depends on** | P3 (Helia + ShardRegistry operational) |
+| **Estimated effort** | 10h |
+
+#### Components
+
+##### [NEW] `browser/catalog/ModelSharder.js`
+- Takes an ONNX/SafeTensors model file → splits into layer-group shards
+- Configurable shard size: target ~500MB per shard (fits in browser memory)
+- Creates shard manifest: `{ modelId, shardId, layerRange, format, paramCount, sizeBytes }`
+- Uploads each shard blob to Helia → gets CID
+- Registers all shards in ShardRegistry via OrbitDB
+
+##### [NEW] `browser/catalog/ModelCatalog.js`
+- OrbitDB Documents store: `cdi-model-catalog`
+- Model metadata: `{ modelId, name, family, paramCount, totalShards, license, uploadedBy, uploadedAt }`
+- Query: by family, by size, by popularity
+- Featured models: curated list for the UI
+
+##### [NEW] `scripts/genesis-upload.js`
+- CLI script run from our local machine
+- Connects to the network as genesis account
+- Downloads models from HuggingFace → shards → uploads to IPFS → registers
+- Progress tracking per model (resume on failure)
+- Outputs manifest JSON for verification
+
+#### Genesis Model Catalog
+
+> [!IMPORTANT]
+> Our local account uploads everything. This ensures the network has content from day 1. Other users can upload models later via the same pipeline.
+
+| Family | Models | Params | Shards (est.) |
+|--------|--------|--------|---------------|
+| **TinyLlama** | TinyLlama-1.1B | 1.1B | 2 |
+| **Llama 3** | Llama-3.2-1B, 3B, 8B | 1-8B | 2-8 |
+| **Mistral** | Mistral-7B-v0.3, Mixtral-8x7B | 7-47B | 8-48 |
+| **Phi** | Phi-3-mini (3.8B), Phi-3-medium (14B) | 3.8-14B | 4-14 |
+| **Qwen** | Qwen2.5-0.5B, 1.5B, 7B, 14B, 32B, 72B | 0.5-72B | 2-72 |
+| **Gemma** | Gemma-2-2B, 9B, 27B | 2-27B | 2-28 |
+| **DeepSeek** | DeepSeek-R1-Distill-Qwen-1.5B through 32B | 1.5-32B | 2-32 |
+| **DeepSeek-R1** | DeepSeek-R1-671B (full MoE) | 671B | 80 |
+| **Code** | CodeLlama-7B, DeepSeek-Coder-V2-Lite | 7-16B | 8-16 |
+| **Vision** | LLaVA-1.5-7B, Qwen2-VL-7B | 7B | 8 |
+| **Embedding** | GTE-Large, BGE-M3 | 0.3-0.6B | 1 |
+
+**Total**: ~40+ models, ~300+ shards
+
+#### Tests (TDD)
+| Test | Description |
+|---|---|
+| `should shard TinyLlama into 2 chunks` | Smallest model test |
+| `should upload shards to Helia and get CIDs` | IPFS integration |
+| `should register model in catalog` | OrbitDB write |
+| `should resume interrupted upload` | Resilience test |
+| `should query catalog by model family` | Search test |
+
+---
+
+### WS-P5.2: Model Browser UI
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p5-model-browser` |
+| **Depends on** | WS-P5.1 |
+| **Estimated effort** | 4h |
+
+#### Components
+
+##### [MODIFY] `browser/index.html`
+- **Model Browser** tab: grid of available models with cards
+  - Model card: name, params, shard count, network availability (% shards online)
+  - Filter: by family, by size, by availability
+  - "Host this model" button → downloads shard weights → join pipeline
+- **Upload Model** tab (power users):
+  - Drag & drop ONNX/SafeTensors file
+  - Auto-shard + upload + register
+  - Shows upload progress per shard
+
+---
+
+## Phase 6: Security & Hardening 📋
+
+> **Status**: Not started.
+> **Goal**: Harden the network before mainnet. Rate limiting, Sybil resistance, ZKP verification of shard computations, reputation system, economic audit.
+
+### WS-P6.1: Sybil Resistance & Rate Limiting
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p6-security` |
+| **Depends on** | P4 (testnet running) |
+| **Estimated effort** | 6h |
+
+#### Components
+
+##### [NEW] `browser/security/RateLimiter.js`
+- Per-wallet rate limits on:
+  - Inference requests: 10/min, 100/hour
+  - Faucet claims: 1 per reward type per wallet
+  - Governance proposals: 1/day per wallet
+- Token-weighted: higher CDI stake = higher limits
+- GossipSub propagation of ban lists
+
+##### [NEW] `browser/security/ReputationSystem.js`
+- Node reputation score (0-100) based on:
+  - Uptime: +1/hour (max 24/day)
+  - Successful inferences: +2 per completion
+  - Failed/abandoned: −5 per failure
+  - Shard availability: +1/hour if shard online
+- Low-reputation nodes deprioritized for shard assignments
+- Reputation stored in OrbitDB `cdi-reputation` store
+
+##### [NEW] `browser/security/SybilGuard.js`
+- Proof-of-Stake: minimum 10 CDI to host shards
+- Proof-of-Work light: simple hash challenge on registration (anti-bot)
+- MetaMask binding verification: each ETH address → max 3 CDI nodes
+- GossipSub peer banning for detected malicious behavior
+
+#### Tests (TDD)
+| Test | Description |
+|---|---|
+| `should rate-limit excessive inference requests` | Throttle test |
+| `should track and update reputation scores` | Score math |
+| `should reject Sybil registrations (>3 nodes/wallet)` | Sybil test |
+| `should ban peers propagating invalid proofs` | Security test |
+
+---
+
+### WS-P6.2: ZKP Shard Verification
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p6-zkp-verify` |
+| **Depends on** | WS-P6.1, P2 WS1 (signing.rs) |
+| **Estimated effort** | 8h |
+
+#### Components
+
+##### [NEW] `browser/cdi-wasm/src/shard_verify.rs`
+- Verify ZK proofs of shard computation (Groth16)
+- Input: proof, public inputs (activation hashes), verification key
+- Output: bool (valid/invalid)
+- Compiled to WASM for browser verification
+
+##### [MODIFY] `browser/compute/ShardExecutor.js`
+- After each forward pass, compute activation hash
+- Generate lightweight commitment (SHA-256 of output activations)
+- Include commitment in shard result
+- PipelineOrchestrator verifies commitments before aggregation
+
+##### [NEW] `browser/security/ProofAggregator.js`
+- Collects activation commitments from all pipeline stages
+- Verifies chain of commitments: stage N output = stage N+1 input
+- Flags inconsistencies → triggers re-execution on different node
+- Records verified inferences in audit log
+
+#### Tests (TDD)
+| Test | Description |
+|---|---|
+| `should verify valid shard computation proof` | Happy path |
+| `should reject tampered activation commitments` | Tamper detection |
+| `should chain-verify entire pipeline` | E2E verification |
+| `should fallback to re-execution on proof failure` | Recovery test |
+
+---
+
+### WS-P6.3: Economic Audit & Tokenomics Hardening
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p6-economic-audit` |
+| **Depends on** | WS-P6.1 |
+| **Estimated effort** | 4h |
+
+#### Components
+
+##### [MODIFY] `browser/cdi-wasm/src/tokenomics.rs`
+- Add anti-inflation safeguards:
+  - Hard cap enforcement: no transaction if it would exceed MAX_SUPPLY
+  - Fee floor: minimum 0.01 CDI per inference
+  - Reward ceiling: max 5 CDI per shard per inference
+- Dynamic fee adjustment based on network utilization
+
+##### [NEW] `browser/security/LedgerAuditor.js`
+- Periodic ledger consistency check:
+  - Sum of all balances = total minted − total burned
+  - No negative balances
+  - All transactions have valid signatures
+- Merkle root computation for ledger state
+- Exportable audit report
+
+##### [NEW] `docs/TOKENOMICS_WHITEPAPER.md`
+- Formal tokenomics documentation:
+  - Supply schedule (halving every epoch)
+  - Fee structure (provider/burn/treasury split)
+  - Shard reward formula
+  - Governance economics
+  - Testnet → mainnet migration rules
+
+---
+
+## Phase 7: Mainnet Launch 🚀
+
+> **Status**: Not started.
+> **Goal**: Launch the production CDI Network. Migrate testnet state, deploy production relay infrastructure, execute genesis block, enable real CDI token transfers.
+
+### WS-P7.1: Testnet → Mainnet Migration
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p7-mainnet` |
+| **Depends on** | P6 complete |
+| **Estimated effort** | 8h |
+
+#### Components
+
+##### [NEW] `browser/mainnet/MigrationManager.js`
+- Snapshot testnet state:
+  - All registered models + shard mappings
+  - Node reputation scores
+  - Governance proposals (executed ones only)
+- **Testnet CDI balances are NOT migrated** — mainnet starts fresh
+- Genesis block includes:
+  - Model catalog (all P5 uploads)
+  - Shard registry (initial assignments)
+  - Treasury allocation: 10% of MAX_SUPPLY for development fund
+
+##### [NEW] `browser/mainnet/GenesisBlock.js`
+- Genesis block structure:
+  ```
+  {
+    blockNumber: 0,
+    timestamp: <mainnet-launch-timestamp>,
+    network: "mainnet",
+    treasury: { address: <treasury-eth-address>, amount: 2_100_000 },
+    models: [ ...all P5 models... ],
+    shards: [ ...all shard CIDs... ],
+    config: { quorum: 0.51, timelockMs: 172800000, feeFloor: 0.01 }
+  }
+  ```
+- Signed by genesis account (our local account)
+- Published to OrbitDB as first entry
+
+##### [MODIFY] `browser/testnet/TestnetFaucet.js`
+- Disable faucet on mainnet: `if (network === 'mainnet') return`
+- Already implemented — just flip the config flag
+
+##### [MODIFY] `browser/cdi-node.js`
+- Network selector: `testnet` / `mainnet`
+- Different bootstrap relay nodes per network
+- Different OrbitDB database names: `cdi-mainnet-*` vs `cdi-testnet-*`
+
+#### Genesis Ceremony Checklist
+
+| Step | Action | Verification |
+|---|---|---|
+| 1 | Freeze testnet development | No new commits to `automation/development` |
+| 2 | Run `scripts/genesis-upload.js` for any new models | All models registered |
+| 3 | Take testnet state snapshot | JSON manifest exported |
+| 4 | Create `GenesisBlock` with mainnet config | Block hash verified |
+| 5 | Update `cdi-node.js` network default to `mainnet` | Config change |
+| 6 | Deploy 5 bootstrap relay tabs | All relays online |
+| 7 | Publish genesis block to mainnet OrbitDB | Block #0 visible to all nodes |
+| 8 | Enable mainnet model catalog | All models queryable |
+| 9 | Tweet genesis announcement | Community notified |
+
+---
+
+### WS-P7.2: Production Relay Infrastructure
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p7-relay-infra` |
+| **Depends on** | WS-P7.1 |
+| **Estimated effort** | 4h |
+
+#### Components
+
+##### [NEW] `browser/mainnet/RelayConfig.js`
+- 5 dedicated relay browser tabs on stable machines
+- Auto-rotation: relay duty passes to highest-uptime public nodes
+- Health monitoring: relay failover if primary goes offline
+- Geographic diversity: relays in EU, US-East, US-West, Asia, SA
+
+##### [MODIFY] `browser/p2p/PeerDiscovery.js`
+- Mainnet bootstrap relay list
+- Priority: connect to nearest relay (latency-based)
+- Fallback: random relay if nearest unavailable
+
+---
+
+### WS-P7.3: Mainnet CDI Token & Bridge
+
+| Field | Value |
+|---|---|
+| **Branch** | `automation/feature/p7-token-bridge` |
+| **Depends on** | WS-P7.1 |
+| **Estimated effort** | 6h |
+
+#### Components
+
+##### [NEW] `browser/mainnet/TokenBridge.js`
+- CDI token ↔ ERC-20 bridge concept:
+  - CDI earned in-network (Ed25519 ledger)
+  - Withdrawal: burn CDI in-network → mint ERC-20 on Ethereum L2
+  - Deposit: burn ERC-20 → credit CDI in-network
+- Initially: withdrawal-only (earn CDI → cash out)
+- Bridge relies on oracle nodes (highest-reputation nodes)
+
+##### [NEW] `docs/CDI_TOKEN_SPEC.md`
+- ERC-20 token specification
+- Bridge mechanics documentation
+- Tokenomics: 21M max supply, halving schedule, fee structure
+- Legal considerations / disclaimers
+
+#### Tests (TDD)
+| Test | Description |
+|---|---|
+| `should create genesis block with correct structure` | Genesis test |
+| `should migrate model catalog from testnet` | Migration test |
+| `should not migrate testnet CDI balances` | Clean start test |
+| `should connect to mainnet bootstrap relays` | Network test |
+| `should record burn event for CDI withdrawal` | Bridge test |
+
+---
+
+### P7 Verification Matrix
+
+| Phase | What | How | Pass Criteria |
+|---|---|---|---|
+| Genesis | Block #0 created | Genesis ceremony | Block hash deterministic |
+| Catalog | All models available | Query catalog API | 40+ models, 300+ shards |
+| Relay | Bootstrap infrastructure | Connect from new browser | Peer connects in <10s |
+| Inference | E2E on mainnet | Submit prompt via UI | Response in <60s |
+| Rewards | CDI earned from inference | Host shard, run pipeline | Balance increases |
+| Bridge | CDI → ERC-20 withdrawal | Burn CDI, check L2 | ERC-20 minted |
+| Scale | 50+ nodes | Public launch | Network stable for 24h |
+
+---
+
+## Full Phase Roadmap
+
+```mermaid
+gantt
+    title CDI Network — Full Development Roadmap to Mainnet
+    dateFormat  YYYY-MM-DD
+    section P1: Core Swarm
+    WS0-WS8 Node.js + Ollama           :done, p1, 2026-02-01, 2026-02-09
+    section P2: Browser WASM Core
+    WS1-4 WASM + Sharding + Gov + Faucet :done, p2, 2026-02-09, 2026-02-10
+    section P3: Real Integration
+    WS-P3.1 libp2p WebRTC              :active, p3a, 2026-02-11, 3d
+    WS-P3.2 Helia + OrbitDB            :p3b, after p3a, 2d
+    WS-P3.3 WebGPU ShardExecutor       :p3c, after p3b, 4d
+    WS-P3.4 E2E Distributed Inference  :p3d, after p3c, 3d
+    section P4: Testnet Launch
+    WS-P4.1 Testnet Infra              :p4a, after p3d, 2d
+    WS-P4.2 Community                  :p4b, after p4a, 2d
+    section P5: Model Catalog
+    WS-P5.1 Sharding Pipeline + Genesis Upload :p5a, after p4a, 4d
+    WS-P5.2 Model Browser UI           :p5b, after p5a, 2d
+    section P6: Security
+    WS-P6.1 Sybil + Rate Limits        :p6a, after p5a, 2d
+    WS-P6.2 ZKP Verification           :p6b, after p6a, 3d
+    WS-P6.3 Economic Audit             :p6c, after p6a, 2d
+    section P7: Mainnet 🚀
+    WS-P7.1 Migration + Genesis        :p7a, after p6b, 3d
+    WS-P7.2 Relay Infrastructure       :p7b, after p7a, 2d
+    WS-P7.3 Token Bridge               :p7c, after p7a, 2d
+    Mainnet Launch                      :milestone, m1, after p7c, 0d
+```
+
+
