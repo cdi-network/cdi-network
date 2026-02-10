@@ -29,6 +29,7 @@ ENV REGISTRY_MODE=none
 ENV OLLAMA_HOST=ollama
 ENV OLLAMA_PORT=11434
 ENV OLLAMA_MODEL=tinyllama
+ENV OLLAMA_API_MODE=generate
 
 # v2: OrbitDB config (used when REGISTRY_MODE=orbitdb)
 ENV ORBITDB_DIR=/app/orbitdb

@@ -15,14 +15,16 @@ services:
     container_name: swarm-ollama
     volumes:
       - ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
     networks:
       - swarm-net
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:11434/ || exit 1"]
+      test: ["CMD", "ollama", "list"]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 12
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -34,7 +36,7 @@ services:
     environment:
       NODE_ID: node-0
       START_LAYER: "0"
-      END_LAYER: "29"
+      END_LAYER: "0"
       LISTEN_PORT: "9000"
       HMAC_SECRET: "swarm-secret"
       COMPUTE_MODE: "ollama"
@@ -56,8 +58,8 @@ services:
     container_name: swarm-node-1
     environment:
       NODE_ID: node-1
-      START_LAYER: "30"
-      END_LAYER: "59"
+      START_LAYER: "1"
+      END_LAYER: "1"
       LISTEN_PORT: "9000"
       HMAC_SECRET: "swarm-secret"
       COMPUTE_MODE: "ollama"

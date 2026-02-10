@@ -35,6 +35,7 @@ export interface PipelineNodeConfig {
     ollamaHost?: string;
     ollamaPort?: number;
     ollamaModel?: string;
+    ollamaApiMode?: 'embed' | 'generate';
     orbitDbDir?: string;
     bootstrapPeers?: string[];
 }
@@ -96,6 +97,7 @@ export class PipelineNode {
                 host: this.config.ollamaHost ?? '127.0.0.1',
                 port: this.config.ollamaPort ?? 11434,
                 model: this.config.ollamaModel ?? 'tinyllama',
+                mode: this.config.ollamaApiMode ?? 'generate',
             });
             return adapter.toComputeFn();
         }
@@ -248,6 +250,7 @@ export class PipelineNode {
             ollamaHost: process.env.OLLAMA_HOST,
             ollamaPort: process.env.OLLAMA_PORT ? parseInt(process.env.OLLAMA_PORT, 10) : undefined,
             ollamaModel: process.env.OLLAMA_MODEL,
+            ollamaApiMode: (process.env.OLLAMA_API_MODE as 'embed' | 'generate') ?? 'generate',
             orbitDbDir: process.env.ORBITDB_DIR,
             bootstrapPeers: process.env.BOOTSTRAP_PEERS
                 ? process.env.BOOTSTRAP_PEERS.split(',')

@@ -51,7 +51,7 @@ graph TD
 ### Design Principles
 - **KISS**: Each module does one thing.
 - **DRY**: Shared types in `src/types/`, shared utils in `src/utils/`.
-- **YAGNI**: No speculative features; only what the tests require.
+- **YAGNI**: No external library if not necessary; only what is required.
 - **Builder Pattern**: All managers use fluent builder APIs.
 - **Dependency Injection**: All deps passed via constructor/factory params.
 - **TDD**: Write test → red → implement → green → refactor.
