@@ -1562,7 +1562,7 @@ gantt
 | **P4** Testnet Launch | GenesisConfig, HealthMonitor, NetworkDashboard | 15 | ✅ |
 | **P5** Model Catalog | ModelSharder, ModelCatalog, GenesisUpload (40 models) | 16 | ✅ |
 | **P6** Security | RateLimiter, ReputationSystem, SybilGuard, ProofAggregator | 23 | ✅ |
-| **P7** Mainnet Launch | MigrationManager, GenesisBlock, TokenBridge | 13 | ✅ |
+| **P7** Mainnet Launch | MigrationManager, GenesisBlock, CDI Token Spec | 8 | ✅ |
 | **Public Repo** | [github.com/cdi-network/cdi-network](https://github.com/cdi-network/cdi-network) | — | ✅ |
 | **TOTAL** | **31+ modules** | **161** | **✅ ALL GREEN** |
 
