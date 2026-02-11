@@ -189,9 +189,18 @@ describe('AutoregressiveGenerator', () => {
     });
 
     it('calls onToken callback for streaming', async () => {
-        const engine = createMockShardedEngine();
         const tokenizer = createMockTokenizer();
-        const pipeline = createMockDistributedPipeline(engine);
+
+        // Pipeline that always returns logits favoring token index 2 ('h'), not EOS
+        const pipeline = {
+            stageCount: 1,
+            stages: [{ nodeId: 'node-1', layerRange: [0, 1] }],
+            async executeStage(_idx: number, _input: Float32Array) {
+                const logits = new Float32Array(tokenizer.vocabSize).fill(-10);
+                logits[2] = 50.0; // strongly favor 'h' (idx 2), which is not EOS (idx 1)
+                return logits;
+            },
+        };
 
         const streamedTokens: string[] = [];
         const generator = new AutoregressiveGenerator({
