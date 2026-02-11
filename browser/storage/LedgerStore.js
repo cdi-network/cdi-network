@@ -36,6 +36,10 @@ export class LedgerStore {
         this.#dbName = dbName;
     }
 
+    /** Lifecycle — no-op (in-memory store is ready after construction). */
+    async open() { return this; }
+    async close() { return this; }
+
     /**
      * Record a new transaction.
      * @param {Omit<Transaction, 'txId'>} tx
