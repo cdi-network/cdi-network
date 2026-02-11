@@ -878,6 +878,9 @@
                 networking, GPU inference, governance, wallet — all running right here via WebAssembly.</p>
             <div class="anim anim-d3" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
                 <button class="btn-join" id="btnJoin" onclick="joinNetwork()">🌐 Join the Network</button>
+                <button class="btn-join" id="btnTestnet" onclick="joinTestnet()"
+                    style="background:linear-gradient(135deg,#0d47a1 0%,#1565c0 100%);font-size:0.82rem">🧪 Join without
+                    MetaMask</button>
                 <a href="docs/WHITEPAPER.md" class="btn-sec">📄 Whitepaper</a>
             </div>
             <div class="h-stats anim anim-d3">
@@ -1199,8 +1202,8 @@
     <script type="module">
         import {
             initWasm, loadOrCreateWallet, connectMetaMask,
-            startNode, getNodeStatus, getStoredBinding,
-            runInference, onNodeEvent, getSubsystems
+            startNode, startNodeTestnet, getNodeStatus, getStoredBinding,
+            runInference, onNodeEvent, getSubsystems, isTestnetOnly
         } from './browser/cdi-node.js';
 
         let _wallet = null;
@@ -1281,6 +1284,22 @@
             }
         };
 
+        // ── Join Testnet (no MetaMask) ──
+        window.joinTestnet = async function () {
+            const btn = document.getElementById('btnTestnet');
+            btn.disabled = true; btn.textContent = 'Initializing…';
+            try {
+                await initWasm();
+                _wallet = loadOrCreateWallet();
+                log('Wallet: ' + _wallet.peerId.slice(0, 16) + '…');
+                await startNodeTestnet();
+                enterApp();
+            } catch (e) {
+                log('Error: ' + e.message, 'e');
+                btn.disabled = false; btn.textContent = '🧪 Join without MetaMask';
+            }
+        };
+
         async function doConnect(auto) {
             if (!auto) {
                 const b = await connectMetaMask();
@@ -1299,7 +1318,7 @@
 
             const b = getStoredBinding();
             document.getElementById('idPeer').textContent = _wallet.peerId;
-            document.getElementById('idEth').textContent = b?.ethAddress || '—';
+            document.getElementById('idEth').textContent = isTestnetOnly() ? '(testnet — no MetaMask)' : (b?.ethAddress || '—');
             document.getElementById('idKey').textContent = _wallet.publicKey;
             document.getElementById('idGpu').textContent = navigator.gpu ? '✅ Active' : '❌ CPU only';
 

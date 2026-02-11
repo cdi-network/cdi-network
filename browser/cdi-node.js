@@ -253,9 +253,28 @@ export function getStoredBinding() {
 
 // ── Full Node Bootstrap ───────────────────────────────────────────────
 
+/**
+ * Start node in testnet mode WITHOUT MetaMask.
+ * Derives a pseudo-ETH address from Ed25519 public key.
+ * All subsystems work identically — only MetaMask binding is skipped.
+ */
+export async function startNodeTestnet() {
+    if (!NODE.wallet) throw new Error('Wallet not initialized');
+    // Derive pseudo-ETH address from public key (0x + first 40 hex chars)
+    const pubHex = NODE.wallet.public_key_hex || NODE.wallet.publicKey || '';
+    NODE.ethAddress = '0x' + pubHex.slice(0, 40).padEnd(40, '0');
+    NODE.testnetOnly = true;
+    console.log('[CDI] Testnet mode (no MetaMask) — derived address:', NODE.ethAddress);
+    return _startNodeInternal();
+}
+
 export async function startNode() {
     if (!NODE.wallet) throw new Error('Wallet not initialized');
     if (!NODE.ethAddress) throw new Error('MetaMask not connected');
+    return _startNodeInternal();
+}
+
+async function _startNodeInternal() {
 
     const peerId = NODE.wallet.peer_id;
     NODE.startTime = Date.now();
@@ -564,3 +583,4 @@ export function getSubsystems() {
 }
 
 export function getState() { return { ...NODE }; }
+export function isTestnetOnly() { return !!NODE.testnetOnly; }
