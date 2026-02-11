@@ -1,0 +1,16 @@
+{
+  "name": "cdi-wasm",
+  "type": "module",
+  "description": "CDI Network browser node core — wallet, signing, tokenomics (WASM)",
+  "version": "0.1.0",
+  "files": [
+    "cdi_wasm_bg.wasm",
+    "cdi_wasm.js",
+    "cdi_wasm.d.ts"
+  ],
+  "main": "cdi_wasm.js",
+  "types": "cdi_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
