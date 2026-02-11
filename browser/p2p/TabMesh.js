@@ -37,11 +37,14 @@ export class TabMesh {
         /** Called when this node sees an encrypted message it can't decrypt (eavesdropper proof) */
         this.onEncryptedDrop = onEncryptedDrop || (() => { });
 
-        this.peers = new Map(); // peerId → { ethAddress, shards, gpu, lastSeen, uptime, inferences, earnings }
+        this.peers = new Map(); // peerId → { ethAddress, shards, gpu, models, lastSeen, uptime, inferences, earnings }
         this.channel = null;
         this._hbInterval = null;
         this._gcInterval = null;
         this._started = false;
+
+        /** @type {string[]} Models loaded on this node (populated by BrowserInferenceEngine) */
+        this.loadedModels = [];
 
         /** @type {E2EKeyManager} ECDH + AES-256-GCM key manager */
         this.e2e = new E2EKeyManager();
@@ -92,6 +95,7 @@ export class TabMesh {
             ethAddress: this.ethAddress,
             ecdhPubKey: this.e2e.getPublicKeyBase64(),
             shards: this._getLocalShards(),
+            models: this.loadedModels,
             gpu: !!navigator.gpu,
             ts: Date.now(),
         });
@@ -101,6 +105,7 @@ export class TabMesh {
         this.send({
             type: 'heartbeat',
             peerId: this.peerId,
+            models: this.loadedModels,
             uptime: this._getUptime(),
             inferences: this._getInferences(),
             earnings: this._getEarnings(),
@@ -113,8 +118,8 @@ export class TabMesh {
      * The prompt is encrypted — only the target peer can decrypt it.
      */
     async requestInference(id, prompt, model, targetPeerId) {
-        // Pick target peer (explicit or first available)
-        const target = targetPeerId || this._pickPeer();
+        // Pick target peer (explicit, or model-aware selection)
+        const target = targetPeerId || this._pickPeer(model);
         if (!target) {
             console.warn('[TabMesh] No peers available for inference');
             return;
@@ -160,13 +165,19 @@ export class TabMesh {
         });
     }
 
-    /** Pick the best peer for inference (first with GPU, fallback to any). */
-    _pickPeer() {
-        // Prefer GPU peers
+    /** Pick the best peer for inference. If model specified, prefer peers that have it loaded. */
+    _pickPeer(model) {
+        // 1. Prefer peers with the requested model loaded
+        if (model) {
+            for (const [id, p] of this.peers) {
+                if (p.models && p.models.includes(model)) return id;
+            }
+        }
+        // 2. Fallback: GPU peers
         for (const [id, p] of this.peers) {
             if (p.gpu) return id;
         }
-        // Fallback: any peer
+        // 3. Fallback: any peer
         const first = this.peers.keys().next();
         return first.done ? null : first.value;
     }
@@ -192,6 +203,7 @@ export class TabMesh {
                 this.peers.set(data.peerId, {
                     ethAddress: data.ethAddress,
                     shards: data.shards || [],
+                    models: data.models || [],
                     gpu: data.gpu,
                     lastSeen: Date.now(),
                     uptime: 0,
@@ -229,6 +241,7 @@ export class TabMesh {
                     peer.uptime = data.uptime;
                     peer.inferences = data.inferences;
                     peer.earnings = data.earnings;
+                    if (data.models) peer.models = data.models;
                 }
                 break;
             }
