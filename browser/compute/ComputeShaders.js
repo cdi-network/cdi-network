@@ -108,3 +108,17 @@ export const COMPUTE_SHADERS = {
     gelu: GELU_SHADER,
     softmax: SOFTMAX_SHADER,
 };
+
+/**
+ * Class wrapper for cdi-node.js compatibility (expects `new ComputeShaders()`).
+ */
+export class ComputeShaders {
+    constructor() {
+        this.matmul = MATMUL_SHADER;
+        this.layernorm = LAYERNORM_SHADER;
+        this.gelu = GELU_SHADER;
+        this.softmax = SOFTMAX_SHADER;
+    }
+    getShader(name) { return COMPUTE_SHADERS[name] || null; }
+    list() { return Object.keys(COMPUTE_SHADERS); }
+}
