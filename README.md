@@ -83,7 +83,6 @@ CDI Network is a **peer-to-peer AI inference protocol** that runs entirely in yo
 | **Halving** | Dynamic (IPS-based) |
 | **Fee Split** | 85% providers / 9% uploaders / 6% improvers |
 | **Min Reward** | 10⁻⁸ CDI |
-| **Token Bridge** | CDI ↔ ERC-20 (L2) |
 
 See [Whitepaper](docs/WHITEPAPER.md) for full details.
 

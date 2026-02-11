@@ -5,7 +5,6 @@
 
 import { MigrationManager } from './MigrationManager.js';
 import { GenesisBlock } from './GenesisBlock.js';
-import { TokenBridge } from './TokenBridge.js';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
@@ -129,58 +128,4 @@ describe('GenesisBlock', () => {
     });
 });
 
-// ── TokenBridge Tests ─────────────────────────────────────────────────
 
-describe('TokenBridge', () => {
-    it('should lock CDI and mint ERC-20', () => {
-        const bridge = new TokenBridge();
-        const tx = bridge.lockAndMint('cdi-addr', '0xEVM', 1000);
-
-        assert.equal(tx.type, 'lock');
-        assert.equal(tx.amount, 1000);
-        assert.equal(tx.status, 'confirmed');
-        assert.ok(tx.proofHash.length === 64);
-
-        const stats = bridge.getStats();
-        assert.equal(stats.totalLocked, 1000);
-    });
-
-    it('should burn ERC-20 and release CDI', () => {
-        const bridge = new TokenBridge();
-        bridge.lockAndMint('cdi-addr', '0xEVM', 1000);
-        const tx = bridge.burnAndRelease('0xEVM', 'cdi-addr', 400);
-
-        assert.equal(tx.type, 'release');
-        assert.equal(tx.amount, 400);
-        assert.equal(bridge.getStats().totalLocked, 600);
-    });
-
-    it('should reject release exceeding locked amount', () => {
-        const bridge = new TokenBridge();
-        bridge.lockAndMint('cdi-addr', '0xEVM', 100);
-        assert.throws(
-            () => bridge.burnAndRelease('0xEVM', 'cdi-addr', 500),
-            /Insufficient locked balance/
-        );
-    });
-
-    it('should track per-address status', () => {
-        const bridge = new TokenBridge();
-        bridge.lockAndMint('addr1', '0xA', 500);
-        bridge.lockAndMint('addr2', '0xB', 300);
-
-        const status = bridge.getStatus('addr1');
-        assert.equal(status.locked, 500);
-        assert.equal(status.transactions.length, 1);
-    });
-
-    it('should maintain full transaction history', () => {
-        const bridge = new TokenBridge();
-        bridge.lockAndMint('a', '0x1', 100);
-        bridge.lockAndMint('a', '0x2', 200);
-        bridge.burnAndRelease('0x1', 'a', 50);
-
-        assert.equal(bridge.transactions.length, 3);
-        assert.equal(bridge.getStats().totalBridged, 300);
-    });
-});

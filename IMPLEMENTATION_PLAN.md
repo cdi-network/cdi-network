@@ -1447,38 +1447,24 @@ graph LR
 
 ---
 
-### WS-P7.3: Mainnet CDI Token & Bridge
+### WS-P7.3: CDI Token Specification
+
+> **NOTE**: CDI is a native-only token. No cross-chain bridges, no premint on external chains.
+> The CDI token lives entirely within the CDI Network's own Ed25519 ledger.
 
 | Field | Value |
 |---|---|
-| **Branch** | `automation/feature/p7-token-bridge` |
+| **Branch** | `automation/feature/p7-token-spec` |
 | **Depends on** | WS-P7.1 |
-| **Estimated effort** | 6h |
+| **Estimated effort** | 3h |
 
 #### Components
 
-##### [NEW] `browser/mainnet/TokenBridge.js`
-- CDI token ↔ ERC-20 bridge concept:
-  - CDI earned in-network (Ed25519 ledger)
-  - Withdrawal: burn CDI in-network → mint ERC-20 on Ethereum L2
-  - Deposit: burn ERC-20 → credit CDI in-network
-- Initially: withdrawal-only (earn CDI → cash out)
-- Bridge relies on oracle nodes (highest-reputation nodes)
-
 ##### [NEW] `docs/CDI_TOKEN_SPEC.md`
-- ERC-20 token specification
-- Bridge mechanics documentation
 - Tokenomics: 21M max supply, halving schedule, fee structure
+- Native Ed25519 ledger specification
+- No ERC-20, no bridges, no external chain interactions
 - Legal considerations / disclaimers
-
-#### Tests (TDD)
-| Test | Description |
-|---|---|
-| `should create genesis block with correct structure` | Genesis test |
-| `should migrate model catalog from testnet` | Migration test |
-| `should not migrate testnet CDI balances` | Clean start test |
-| `should connect to mainnet bootstrap relays` | Network test |
-| `should record burn event for CDI withdrawal` | Bridge test |
 
 ---
 
@@ -1491,7 +1477,7 @@ graph LR
 | Relay | Bootstrap infrastructure | Connect from new browser | Peer connects in <10s |
 | Inference | E2E on mainnet | Submit prompt via UI | Response in <60s |
 | Rewards | CDI earned from inference | Host shard, run pipeline | Balance increases |
-| Bridge | CDI → ERC-20 withdrawal | Burn CDI, check L2 | ERC-20 minted |
+| Token | CDI native ledger | Earn CDI via inference | Balance updates correctly |
 | Scale | 50+ nodes | Public launch | Network stable for 24h |
 
 ---
