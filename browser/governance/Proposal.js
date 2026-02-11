@@ -4,7 +4,7 @@
  * @module browser/governance/Proposal
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from '../crypto-browser.js';
 
 export const PROPOSAL_STATUS = {
     ACTIVE: 'active',

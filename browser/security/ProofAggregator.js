@@ -7,7 +7,7 @@
  * @module browser/security/ProofAggregator
  */
 
-import { createHash } from 'node:crypto';
+import { createHash } from '../crypto-browser.js';
 
 /**
  * @typedef {Object} StageCommitment

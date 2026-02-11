@@ -19,7 +19,7 @@
  * @property {string} checksum
  */
 
-import { createHash } from 'node:crypto';
+import { createHash } from '../crypto-browser.js';
 
 export class MigrationManager {
     #sourceNetworkId;

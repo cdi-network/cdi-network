@@ -7,7 +7,7 @@
  * @module browser/storage/LedgerStore
  */
 
-import { createHash } from 'node:crypto';
+import { createHash } from '../crypto-browser.js';
 
 /**
  * @typedef {Object} Transaction

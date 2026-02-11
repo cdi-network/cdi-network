@@ -8,7 +8,7 @@
  * @module browser/storage/HeliaManager
  */
 
-import { createHash } from 'node:crypto';
+import { createHash } from '../crypto-browser.js';
 
 const DEFAULT_MAX_STORAGE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
 

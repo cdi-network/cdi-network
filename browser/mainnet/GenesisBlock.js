@@ -7,7 +7,7 @@
  * @module browser/mainnet/GenesisBlock
  */
 
-import { createHash } from 'node:crypto';
+import { createHash } from '../crypto-browser.js';
 
 export class GenesisBlock {
     #block = null;

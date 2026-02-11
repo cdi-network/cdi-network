@@ -26,7 +26,7 @@
  * @property {number} numHeads      - Number of attention heads
  */
 
-import { createHash } from 'node:crypto';
+import { createHash } from '../crypto-browser.js';
 
 export class ShardExecutor {
     /** @type {boolean} */
