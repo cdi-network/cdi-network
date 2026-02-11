@@ -95,6 +95,18 @@ export class PeerDiscovery {
         }
     }
 
+    /** Lifecycle alias — called by cdi-node.js bootstrap. */
+    start() {
+        this.startAnnouncing({
+            shards: [],
+            gpuCapability: (typeof navigator !== 'undefined' && navigator.gpu) ? 'webgpu' : 'wasm-cpu',
+            bandwidth: 0,
+            reputation: 50,
+            uptime: 0,
+        });
+    }
+    /** Lifecycle alias. */
+    stop() { this.stopAnnouncing(); }
     /**
      * Update self announce data (e.g., new shard claimed).
      * @param {Partial<PeerAnnounce>} updates
@@ -161,6 +173,16 @@ export class PeerDiscovery {
      * @param {Function} handler - (PeerAnnounce) => void
      */
     onPeerLeave(handler) { this.#onPeerLeave = handler; }
+
+    /**
+     * EventEmitter-style event handler (used by cdi-node.js bootstrap).
+     * @param {string} event - 'peer:found' | 'peer:lost'
+     * @param {Function} handler
+     */
+    on(event, handler) {
+        if (event === 'peer:found') this.#onPeerJoin = handler;
+        else if (event === 'peer:lost') this.#onPeerLeave = handler;
+    }
 
     /** @returns {PeerAnnounce[]} All known peers */
     get peers() { return [...this.#peers.values()]; }
