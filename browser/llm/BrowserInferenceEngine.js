@@ -8,15 +8,35 @@
  * @module browser/llm/BrowserInferenceEngine
  */
 
-/** Supported models — smallest to largest */
+/**
+ * Supported models — progressive scale from 360M to 8B.
+ * Ordered by VRAM requirement for rolling capability testing.
+ *
+ * Tiers:
+ *   xs  = <500MB VRAM   — any device
+ *   s   = 500MB-1GB     — mid-range phones
+ *   m   = 1-2GB         — flagship phones, low-end laptops
+ *   l   = 2-4GB         — laptops with dGPU
+ *   xl  = 4-8GB         — desktops, MacBooks with 8GB+
+ */
 export const SUPPORTED_MODELS = [
     {
         id: 'SmolLM2-360M-Instruct-q4f16_1-MLC',
         name: 'SmolLM2 360M',
         params: '360M',
-        vram: 130,          // MB
+        vram: 130,
         family: 'smollm',
-        description: 'Ultra-fast, low-end devices',
+        tier: 'xs',
+        description: 'Ultra fast — any device',
+    },
+    {
+        id: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
+        name: 'Qwen2.5 0.5B',
+        params: '0.5B',
+        vram: 350,
+        family: 'qwen',
+        tier: 'xs',
+        description: 'Qwen2.5 nano — low-end phones',
     },
     {
         id: 'TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC',
@@ -24,7 +44,26 @@ export const SUPPORTED_MODELS = [
         params: '1.1B',
         vram: 900,
         family: 'llama',
+        tier: 's',
         description: 'Primary testnet model',
+    },
+    {
+        id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
+        name: 'Qwen2.5 1.5B',
+        params: '1.5B',
+        vram: 1100,
+        family: 'qwen',
+        tier: 'm',
+        description: 'Qwen2.5 small — good quality',
+    },
+    {
+        id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+        name: 'Llama 3.2 1B',
+        params: '1B',
+        vram: 800,
+        family: 'llama',
+        tier: 's',
+        description: 'Meta Llama 3.2 — fast',
     },
     {
         id: 'Gemma-2-2B-it-q4f16_1-MLC',
@@ -32,7 +71,44 @@ export const SUPPORTED_MODELS = [
         params: '2B',
         vram: 2048,
         family: 'gemma',
-        description: 'Higher quality, capable GPUs',
+        tier: 'm',
+        description: 'Google Gemma — high quality',
+    },
+    {
+        id: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',
+        name: 'Llama 3.2 3B',
+        params: '3B',
+        vram: 2200,
+        family: 'llama',
+        tier: 'm',
+        description: 'Meta Llama 3.2 — balanced',
+    },
+    {
+        id: 'Phi-3.5-mini-instruct-q4f16_1-MLC',
+        name: 'Phi 3.5 Mini',
+        params: '3.8B',
+        vram: 2800,
+        family: 'phi',
+        tier: 'l',
+        description: 'Microsoft Phi — reasoning',
+    },
+    {
+        id: 'Qwen2.5-7B-Instruct-q4f16_1-MLC',
+        name: 'Qwen2.5 7B',
+        params: '7B',
+        vram: 5200,
+        family: 'qwen',
+        tier: 'xl',
+        description: 'Qwen2.5 large — best quality',
+    },
+    {
+        id: 'Llama-3.1-8B-Instruct-q4f16_1-MLC',
+        name: 'Llama 3.1 8B',
+        params: '8B',
+        vram: 5800,
+        family: 'llama',
+        tier: 'xl',
+        description: 'Meta Llama 3.1 — flagship',
     },
 ];
 

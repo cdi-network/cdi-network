@@ -371,11 +371,8 @@
         <div class="card full-width">
             <h2>🧠 Model Engine (In-Browser WebGPU)</h2>
             <div class="controls">
-                <select id="modelSelect" style="max-width:350px;">
-                    <option value="SmolLM2-360M-Instruct-q4f16_1-MLC">SmolLM2 360M (130MB) — Ultra fast</option>
-                    <option value="TinyLlama-1.1B-Chat-v1.0-q4f16_1-MLC">TinyLlama 1.1B (900MB) — Testnet Primary
-                    </option>
-                    <option value="Gemma-2-2B-it-q4f16_1-MLC">Gemma 2 2B (2GB) — Higher quality</option>
+                <select id="modelSelect" style="max-width:480px;">
+                    <!-- Populated dynamically from SUPPORTED_MODELS -->
                 </select>
                 <button id="btnLoad" class="btn btn-gold" onclick="loadModel()" disabled>📥 Load Model</button>
                 <span id="modelStatus" style="font-size:0.8rem; color:var(--dim);">Start node first</span>
@@ -384,10 +381,12 @@
                 <div class="progress-bar" id="progressBar"></div>
                 <span class="progress-text" id="progressText">0%</span>
             </div>
-            <p style="font-size:0.72rem; color:var(--dim); margin-top:6px;">
-                Models run <b>entirely in your browser</b> via WebGPU. Downloaded once, cached in IndexedDB.
-                No server, no API calls. Your GPU = the compute node.
-            </p>
+            <div id="modelMeta"
+                style="font-size:0.72rem; color:var(--dim); margin-top:6px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                <span>Models run <b>entirely in your browser</b> via WebGPU. Downloaded once, cached in
+                    IndexedDB.</span>
+                <span id="vramInfo"></span>
+            </div>
         </div>
 
         <!-- Inference -->
@@ -488,15 +487,44 @@
                     badge.textContent = '🟢 WebGPU';
                     return true;
                 }
-            } catch {}
+            } catch { }
             badge.className = 'badge badge-no-webgpu';
             badge.textContent = '🔴 No WebGPU';
             return false;
         }
         checkGPU();
 
+        // ── Populate Model Selector ──
+        function populateModels() {
+            const select = document.getElementById('modelSelect');
+            const tierEmoji = { xs: '🟢', s: '🟡', m: '🟠', l: '🔴', xl: '💎' };
+            select.innerHTML = '';
+            for (const m of SUPPORTED_MODELS) {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                const vramStr = m.vram < 1000 ? `${m.vram}MB` : `${(m.vram / 1024).toFixed(1)}GB`;
+                opt.textContent = `${tierEmoji[m.tier] || ''} ${m.name} (${m.params}, ~${vramStr}) — ${m.description}`;
+                select.appendChild(opt);
+            }
+            updateVramInfo();
+        }
+
+        function updateVramInfo() {
+            const modelId = document.getElementById('modelSelect').value;
+            const m = SUPPORTED_MODELS.find(x => x.id === modelId);
+            const el = document.getElementById('vramInfo');
+            if (m) {
+                const vramStr = m.vram < 1000 ? `${m.vram}MB` : `${(m.vram / 1024).toFixed(1)}GB`;
+                const tierLabel = { xs: 'Any device', s: 'Mid phones', m: 'Flagships/laptops', l: 'dGPU laptops', xl: 'Desktop/MacBook 8GB+' };
+                el.innerHTML = `<b>VRAM: ~${vramStr}</b> · ${m.family} · ${tierLabel[m.tier] || m.tier}`;
+            }
+        }
+
+        document.getElementById('modelSelect').addEventListener('change', updateVramInfo);
+        populateModels();
+
         // ── Start Node ──
-        window.startNode = async function() {
+        window.startNode = async function () {
             document.getElementById('btnStart').disabled = true;
             document.getElementById('nodeStatus').textContent = 'Starting…';
 
@@ -538,7 +566,7 @@
                     document.getElementById('dropCount').textContent = dropCounter;
                     logDrop(`🚫 ${info.reason}: msg ${info.id} from ${info.from?.slice(0, 12)}… → ${info.targetPeerId?.slice(0, 12)}…`);
                 },
-                onMessage: () => {},
+                onMessage: () => { },
             });
 
             await mesh.start();
@@ -551,7 +579,7 @@
         };
 
         // ── Load Model ──
-        window.loadModel = async function() {
+        window.loadModel = async function () {
             if (!mesh) return;
 
             const hasGPU = await checkGPU();
@@ -600,7 +628,7 @@
         };
 
         // ── Run Inference ──
-        window.runInference = async function() {
+        window.runInference = async function () {
             const prompt = document.getElementById('promptInput').value.trim();
             if (!prompt) return;
 
